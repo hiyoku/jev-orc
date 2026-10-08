@@ -1,0 +1,5 @@
+{
+  "name": "jev-orchestrator",
+  "version": "0.1.0",
+  "description": "Roteia spawns de Agent pelo JEV (TypeSafe)"
+}
