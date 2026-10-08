@@ -1,0 +1,91 @@
+import { expect, test } from 'claude-code/testing'
+import { loadConfig } from '../config'
+import { askJev, JevError } from './client'
+
+const config = loadConfig({}).config
+const task = { tarefa: 'rename x', contexto: 'general-purpose: rename' }
+const KEY = 'sk-secret-123'
+const good = {
+  answers: {
+    complexity: { score: 0.5, confidence: 0.9 },
+    deliberation: { noul: 0.1 }, edits_files: { noul: 0.9 }, runs_shell: { noul: 0 },
+    web_research: { noul: 0 }, library_docs: { noul: 0 }, browser: { noul: 0 },
+  },
+}
+
+// Plain fake `$`: the host refuses `$.env/http/clock` calls from modules that the plugin's
+// hooks don't import (it scans for them), so askJev is tested through a structural fake.
+// The "clock" is manual: sleep() resolves only when the test calls tick().
+function setup(env: Record<string, string>, res: () => Promise<unknown> | unknown) {
+  const calls: { url: string; init?: { headers?: Record<string, string>; body?: string; method?: string } }[] = []
+  const sleeps: (() => void)[] = []
+  const $ = {
+    env: { get: async (name: string) => env[name] },
+    http: {
+      fetch: async (url: string, init?: never) => {
+        calls.push({ url, init })
+        const r = (await res()) as { status: number; text: string }
+        return { status: r.status, ok: r.status < 300, headers: {}, text: r.text }
+      },
+    },
+    clock: { sleep: (_ms: number) => new Promise<void>((r) => { sleeps.push(r) }) },
+  } as unknown as Parameters<typeof askJev>[0]
+  const run = async () => {
+    try { return { ok: await askJev($, task, config) } } catch (e) { return { err: e as JevError } }
+  }
+  return { run, calls, tick: () => sleeps.forEach((r) => r()) }
+}
+
+test('success: posts body and bearer header, returns answers', async () => {
+  const { run, calls } = setup({ TYPESAFE_API_KEY: KEY }, () => ({ status: 200, text: JSON.stringify(good) }))
+  expect((await run()).ok).toEqual(good.answers)
+  expect(calls[0].url).toBe(config.jevEndpoint)
+  expect(calls[0].init?.method).toBe('POST')
+  expect(calls[0].init?.headers?.Authorization).toBe(`Bearer ${KEY}`)
+  const body = JSON.parse(calls[0].init?.body ?? '')
+  expect(body.model).toBe('jev-latest')
+  expect(body.state).toEqual(task)
+  expect(Object.keys(body.questions).length).toBe(7)
+})
+
+test('JEV_API_KEY works as fallback', async () => {
+  const { run, calls } = setup({ JEV_API_KEY: KEY }, () => ({ status: 200, text: JSON.stringify(good) }))
+  await run()
+  expect(calls[0].init?.headers?.Authorization).toBe(`Bearer ${KEY}`)
+})
+
+test('missing key', async () => {
+  const { run, calls } = setup({}, () => ({ status: 200, text: '' }))
+  expect((await run()).err?.kind).toBe('missing_key')
+  expect(calls.length).toBe(0)
+})
+
+test('timeout when fetch outlasts jevTimeoutMs', async () => {
+  const s = setup({ TYPESAFE_API_KEY: KEY }, () => new Promise(() => {}))
+  const p = s.run()
+  await Promise.resolve(); await Promise.resolve()
+  s.tick()
+  expect((await p).err?.kind).toBe('timeout')
+})
+
+test('HTTP 500', async () => {
+  const { run } = setup({ TYPESAFE_API_KEY: KEY }, () => ({ status: 500, text: 'boom' }))
+  expect((await run()).err?.kind).toBe('http_500')
+})
+
+test('malformed payloads are bad_payload', async () => {
+  const bodies = ['not json', '{}', JSON.stringify({ answers: { ...good.answers, browser: { noul: 'x' } } }),
+    JSON.stringify({ answers: { ...good.answers, complexity: { score: 1 } } })]
+  let i = 0
+  const { run } = setup({ TYPESAFE_API_KEY: KEY }, () => ({ status: 200, text: bodies[i] }))
+  for (; i < bodies.length; i++) expect((await run()).err?.kind).toBe('bad_payload')
+})
+
+test('the key never appears in an error message', async () => {
+  let status = 500
+  const { run } = setup({ TYPESAFE_API_KEY: KEY }, () => ({ status, text: `echo ${KEY}` }))
+  for (status of [500, 403, 200]) {
+    const e = (await run()).err
+    expect(e?.message.includes(KEY)).toBe(false)
+  }
+})
