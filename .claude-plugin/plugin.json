@@ -1,5 +1,248 @@
 {
   "name": "jev-orchestrator",
   "version": "0.1.0",
-  "description": "Roteia spawns de Agent pelo JEV (TypeSafe)"
+  "description": "Roteia spawns de Agent pelo JEV (TypeSafe)",
+  "userConfig": {
+    "mode": {
+      "type": "string",
+      "title": "Modo",
+      "description": "auto: JEV decide; off: desligado; explicit: so o que for forcado",
+      "default": "auto",
+      "options": [
+        "auto",
+        "off",
+        "explicit"
+      ]
+    },
+    "effortsHaiku": {
+      "type": "string",
+      "multiple": true,
+      "title": "Efforts com haiku",
+      "description": "Efforts permitidos com haiku (low..max). Vazio desabilita o haiku.",
+      "default": [
+        "low",
+        "medium"
+      ]
+    },
+    "effortsSonnet": {
+      "type": "string",
+      "multiple": true,
+      "title": "Efforts com sonnet",
+      "description": "Efforts permitidos com sonnet (low..max). Vazio desabilita o sonnet.",
+      "default": [
+        "low",
+        "medium",
+        "high"
+      ]
+    },
+    "effortsOpus": {
+      "type": "string",
+      "multiple": true,
+      "title": "Efforts com opus",
+      "description": "Efforts permitidos com opus (low..max). Vazio desabilita o opus.",
+      "default": [
+        "medium",
+        "high",
+        "xhigh"
+      ]
+    },
+    "fallbackOrder": {
+      "type": "string",
+      "multiple": true,
+      "title": "Ordem de fallback",
+      "description": "Modelos tentados, em ordem, quando o escolhido esta desabilitado.",
+      "default": [
+        "sonnet",
+        "opus",
+        "haiku"
+      ]
+    },
+    "agentsIntercept": {
+      "type": "string",
+      "multiple": true,
+      "title": "Agents interceptados",
+      "description": "Tipos de agent que o mod reescreve; os demais passam intocados.",
+      "default": [
+        "general-purpose",
+        "Explore"
+      ]
+    },
+    "agentsTarget": {
+      "type": "string",
+      "multiple": true,
+      "title": "Perfis alvo",
+      "description": "Perfis para os quais o mod pode transicionar (explore, general).",
+      "default": [
+        "explore",
+        "general"
+      ]
+    },
+    "forceModel": {
+      "type": "string",
+      "title": "Forcar modelo",
+      "description": "jev: o JEV decide.",
+      "default": "jev",
+      "options": [
+        "jev",
+        "haiku",
+        "sonnet",
+        "opus"
+      ]
+    },
+    "forceEffort": {
+      "type": "string",
+      "title": "Forcar effort",
+      "description": "Effort fixo para qualquer perfil. jev: o JEV decide.",
+      "default": "jev",
+      "options": [
+        "jev",
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max"
+      ]
+    },
+    "forceEffortExplore": {
+      "type": "string",
+      "title": "Forcar effort (explore)",
+      "description": "Effort fixo so no perfil explore.",
+      "default": "jev",
+      "options": [
+        "jev",
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max"
+      ]
+    },
+    "forceEffortGeneral": {
+      "type": "string",
+      "title": "Forcar effort (general)",
+      "description": "Effort fixo so no perfil general.",
+      "default": "jev",
+      "options": [
+        "jev",
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max"
+      ]
+    },
+    "forceAgent": {
+      "type": "string",
+      "title": "Forcar perfil",
+      "description": "Perfil fixo. jev: o JEV decide.",
+      "default": "jev",
+      "options": [
+        "jev",
+        "explore",
+        "general"
+      ]
+    },
+    "forceTools": {
+      "type": "string",
+      "multiple": true,
+      "title": "Forcar tools",
+      "description": "Tools fixas (ainda passam por toolsDeny e pelo catalogo). Vazio: o JEV decide.",
+      "default": []
+    },
+    "fallbackModel": {
+      "type": "string",
+      "title": "Fallback: modelo",
+      "description": "Modelo usado quando o JEV falha.",
+      "default": "sonnet",
+      "options": [
+        "haiku",
+        "sonnet",
+        "opus"
+      ]
+    },
+    "fallbackEffort": {
+      "type": "string",
+      "title": "Fallback: effort",
+      "description": "Effort usado quando o JEV falha.",
+      "default": "medium",
+      "options": [
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max"
+      ]
+    },
+    "fallbackAgent": {
+      "type": "string",
+      "title": "Fallback: agent",
+      "description": "Tipo de agent usado quando o JEV falha.",
+      "default": "general-purpose"
+    },
+    "multiModel": {
+      "type": "boolean",
+      "title": "Multi-modelo",
+      "description": "Permite modelos diferentes dentro da mesma tarefa.",
+      "default": false
+    },
+    "maxModelsPerTask": {
+      "type": "number",
+      "title": "Max modelos por tarefa",
+      "description": "Inteiro >= 1.",
+      "default": 1,
+      "min": 1
+    },
+    "maxAgents": {
+      "type": "number",
+      "title": "Max agents",
+      "description": "Maximo de agents por pedido.",
+      "default": 8,
+      "min": 1
+    },
+    "parallelism": {
+      "type": "number",
+      "title": "Paralelismo",
+      "description": "Agents simultaneos.",
+      "default": 4,
+      "min": 1
+    },
+    "toolsAllow": {
+      "type": "string",
+      "multiple": true,
+      "title": "Tools permitidas",
+      "description": "Nomes reais de tools que o JEV pode atribuir.",
+      "default": []
+    },
+    "toolsDeny": {
+      "type": "string",
+      "multiple": true,
+      "title": "Tools negadas",
+      "description": "Nomes reais de tools nunca atribuidas.",
+      "default": []
+    },
+    "jevTimeoutMs": {
+      "type": "number",
+      "title": "Timeout do JEV (ms)",
+      "description": "Tempo maximo de espera pelo JEV.",
+      "default": 15000,
+      "min": 1
+    },
+    "jevEndpoint": {
+      "type": "string",
+      "title": "Endpoint do JEV",
+      "description": "URL da API do JEV.",
+      "default": "https://api.typesafe.ai/v1/systemone"
+    },
+    "logLevel": {
+      "type": "string",
+      "title": "Log",
+      "description": "Nivel de log.",
+      "default": "info",
+      "options": [
+        "off",
+        "info",
+        "debug"
+      ]
+    }
+  }
 }
