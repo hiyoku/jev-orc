@@ -12,7 +12,7 @@ export const GROUP_PATTERNS: Record<ToolGroup, readonly string[]> = {
   browser: ['mcp__claude-in-chrome__*'],
 }
 
-const matches = (pattern: string, name: string) =>
+export const matches = (pattern: string, name: string) =>
   pattern.endsWith('*') ? name.startsWith(pattern.slice(0, -1)) : pattern === name
 
 const matchesAny = (patterns: readonly string[], name: string) =>
