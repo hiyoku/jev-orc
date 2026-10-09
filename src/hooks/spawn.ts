@@ -68,7 +68,7 @@ export function routeAgentSpawns(on: On, config: Config, registered: ReadonlySet
   const dispatching = new Map<string, number>()
   let warnedMissingKey = false
   const warned = { log: false }
-  // ponytail: oldest-first eviction past the cap; a repeat older than 1000 routings is routed again
+  // ponytail: oldest-first eviction past the cap; a repeat older than 1000 routings is routed again; revisit if decisions.jsonl shows a tool_use_id routed twice
   const routedIds = new Set<string>()
   // Routed agents running, by agentId, freed at their turn.complete.
   const active = new Set<string>()
