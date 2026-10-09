@@ -34,7 +34,7 @@ ondas, quando as anteriores terminarem, levando no prompt o que a anterior entre
 
 Confira o resultado de cada agente (rode os testes você mesmo quando houver). Relate ao
 usuário por tarefa: feito / falhou / pulado, com o modelo e o effort usados. Esses valores
-vêm do resultado do agente (e, quando houver log de decisões do MOD, dele). Commits seguem
+vêm do resultado do agente e do log do MOD (`tail -n 20 ~/.claude/jev-orchestrator/decisions.jsonl`). Commits seguem
 as regras do usuário e do projeto, e só se ele pediu.
 
 ## 4. Se o MOD não estiver carregado

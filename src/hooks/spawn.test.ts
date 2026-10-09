@@ -1,9 +1,11 @@
 import type { AgentSpawnInput, On } from 'claude-code'
 import { expect, mock, test, type Engine } from 'claude-code/testing'
 import { FALLBACK_PROFILE } from '../agents/profiles'
+import { LOG_PATH } from '../log'
 import { isOwnSpawn, MAX_TASK_CHARS } from './spawn'
 
 const KEY = 'sk-test'
+const HOME = '/home/u'
 const TIMEOUT_MS = 8000
 const START = { cwd: '/work', surface: null, isInteractive: false }
 // Read-only, low complexity, low deliberation: haiku + low + t-read.
@@ -41,7 +43,9 @@ async function world($: Engine, on: On, opts: World = {}) {
   const toasts: string[] = []
   const bodies: JevBody[] = []
   const registers: string[] = []
-  mock.env(on, opts.env ?? { TYPESAFE_API_KEY: KEY })
+  const files = new Map<string, string>()
+  const statuses: (string | undefined)[] = []
+  mock.env(on, { HOME, ...(opts.env ?? { TYPESAFE_API_KEY: KEY }) })
   const clock = mock.clock(on)
   on('session.start', (_, e) => e)
   on('agent.register', (_, spec) => {
@@ -51,6 +55,10 @@ async function world($: Engine, on: On, opts: World = {}) {
   })
   on('agent.offer', () => ({ isOffered: true }))
   on('ui.toast', (_, e) => (toasts.push(e.text), { value: undefined }))
+  on('ui.status', (_, e) => (statuses.push(e.text), { value: undefined }))
+  on('fs.exists', (_, e) => ({ value: files.has(e.path) }))
+  on('fs.read', (_, e) => ({ value: files.get(e.path)! }))
+  on('fs.write', (_, e) => (files.set(e.path, e.text), { value: undefined }))
   on('http.fetch', async (_, e) => {
     const body = JSON.parse(e.init?.body ?? '{}') as JevBody
     bodies.push(body)
@@ -70,7 +78,8 @@ async function world($: Engine, on: On, opts: World = {}) {
     return { model: e.model ?? 'inherit', agentId: `a-${e.tool_use_id}` }
   })
   await $.session.start(START)
-  return { tools, spawns, toasts, bodies, registers, clock }
+  const logLines = () => (files.get(`${HOME}/${LOG_PATH}`) ?? '').split('\n').filter(Boolean).map((l) => JSON.parse(l))
+  return { tools, spawns, toasts, bodies, registers, clock, files, statuses, logLines }
 }
 
 const agent = (id: string, extra: Partial<Agent> = {}): Agent => ({
@@ -276,4 +285,64 @@ test('maxAgents reached falls back until a routed agent completes', { options: {
   await callAgent($, agent('m4'))
   expect(w.bodies).toHaveLength(2)
   expect(w.spawns[3].subagentType).toBe('jev-orchestrator:t-read')
+})
+
+// Decision log
+
+const settle = async () => { for (let i = 0; i < 20; i++) await tick() }
+
+test('one log line per routed spawn, and the status names the routing', async ($, on) => {
+  const w = await world($, on)
+  await callAgent($, agent('l1', { description: '[jev] read file' }))
+  await settle()
+  const lines = w.logLines()
+  expect(lines).toHaveLength(1)
+  expect(lines[0]).toMatchObject({
+    tool_use_id: 'l1', description: 'read file', outcome: 'routed', models: ['haiku'], effort: 'low',
+    profile: 'jev-orchestrator:t-read', jev: { complexity: 0.2, complexity_confidence: 0.9, deliberation: 0.1 },
+  })
+  expect(w.statuses.at(-1)).toBe('jev: haiku·low·t-read')
+})
+
+test('fallback logs the error kind and never the key', async ($, on) => {
+  const w = await world($, on, { jev: () => new Promise(() => {}) })
+  const call = callAgent($, agent('slow'))
+  await w.clock.advance(TIMEOUT_MS)
+  await call
+  await settle()
+  expect(w.logLines()[0]).toMatchObject({ outcome: 'fallback', error: 'timeout', models: ['sonnet'], effort: 'medium' })
+  expect(w.statuses.at(-1)).toBe('jev: fallback (timeout)')
+  for (const text of w.files.values()) expect(text).not.toContain(KEY)
+})
+
+test('the key never reaches the log, even at debug with a bad payload', { options: { logLevel: 'debug' } }, async ($, on) => {
+  const w = await world($, on, { jev: () => ({ broken: true }) })
+  await callAgent($, agent('bad', { prompt: `use ${KEY}`.padEnd(400, '.') }))
+  await settle()
+  expect(w.logLines()[0]).toMatchObject({ outcome: 'fallback', error: 'bad_payload' })
+  expect(w.logLines()[0].jev_request.tarefa).toHaveLength(200)
+  for (const text of w.files.values()) expect(text).not.toContain('Bearer')
+})
+
+test('logLevel off writes nothing', { options: { logLevel: 'off' } }, async ($, on) => {
+  const w = await world($, on)
+  await callAgent($, agent('quiet'))
+  await settle()
+  expect(w.files.size).toBe(0)
+})
+
+test('a skipped decision is logged as skip', { options: { agentsTarget: ['explore'] } }, async ($, on) => {
+  const w = await world($, on, { jev: () => WRITES })
+  await callAgent($, agent('sk', { prompt: 'edit' }))
+  await settle()
+  expect(w.logLines()[0]).toMatchObject({ tool_use_id: 'sk', outcome: 'skip', models: [] })
+  expect(w.spawns[0].model).toBeUndefined()
+})
+
+test('10 parallel spawns write 10 whole lines', async ($, on) => {
+  const w = await world($, on)
+  const ids = Array.from({ length: 10 }, (_, i) => `q${i}`)
+  await Promise.all(ids.map((id) => callAgent($, agent(id))))
+  await settle()
+  expect(w.logLines().map((l) => l.tool_use_id).sort()).toEqual([...ids].sort())
 })

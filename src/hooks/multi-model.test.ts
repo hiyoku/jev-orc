@@ -3,6 +3,7 @@ import { expect, mock, test, type Engine } from 'claude-code/testing'
 import { loadConfig } from '../config'
 import { decide } from '../domain/policy'
 import type { JevAnswers } from '../jev/answers'
+import { LOG_PATH } from '../log'
 
 const MULTI = { multiModel: true, maxModelsPerTask: 2 }
 const answers = (score: number, confidence: number): JevAnswers => ({
@@ -54,12 +55,17 @@ async function world($: Engine, on: On) {
   const spawns: AgentSpawnInput[] = []
   const toasts: string[] = []
   let jevCalls = 0
-  mock.env(on, { TYPESAFE_API_KEY: 'sk-test' })
+  const files = new Map<string, string>()
+  mock.env(on, { HOME: '/home/u', TYPESAFE_API_KEY: 'sk-test' })
   mock.clock(on)
   on('session.start', (_, e) => e)
   on('agent.register', (_, spec) => ({ value: { agent: `jev-orchestrator:${spec.name}` } }))
   on('agent.offer', () => ({ isOffered: true }))
   on('ui.toast', (_, e) => (toasts.push(e.text), { value: undefined }))
+  on('ui.status', () => ({ value: undefined }))
+  on('fs.exists', (_, e) => ({ value: files.has(e.path) }))
+  on('fs.read', (_, e) => ({ value: files.get(e.path)! }))
+  on('fs.write', (_, e) => (files.set(e.path, e.text), { value: undefined }))
   on('http.fetch', () => (jevCalls++, { value: { status: 200, ok: true, headers: {}, text: JSON.stringify({ answers: HARD }) } }))
   on('tool.call', async (_, e) => {
     const a = e as unknown as { tool_use_id: string; prompt: string; description: string }
@@ -79,7 +85,8 @@ async function world($: Engine, on: On) {
   await $.session.start({ cwd: '/work', surface: null, isInteractive: false })
   const call = (id: string) =>
     $.tool.call({ tool: 'Agent', tool_use_id: id, description: 'audit auth', prompt: 'audit the auth flow', subagent_type: 'general-purpose' } as never)
-  return { spawns, toasts, call, jevCalls: () => jevCalls }
+  const logLines = () => (files.get(`/home/u/${LOG_PATH}`) ?? '').split('\n').filter(Boolean).map((l) => JSON.parse(l))
+  return { spawns, toasts, call, jevCalls: () => jevCalls, logLines }
 }
 
 test('the verifier is spawned once after the primary completes, and never routed', { options: MULTI }, async ($, on) => {
@@ -98,6 +105,12 @@ expect(w.spawns.map((s) => s.model)).toEqual(['opus'])
   expect(verifier.prompt).toContain('audit the auth flow')
   expect(verifier.prompt).toContain('primary says ok')
   expect(w.jevCalls()).toBe(1)
+
+  await tick()
+  expect(w.logLines().map((l) => [l.outcome, l.tool_use_id, l.models])).toEqual([
+    ['routed', 'p1', ['opus', 'sonnet']],
+    ['verifier', 'p1', ['sonnet']],
+  ])
 
   await $.turn.complete({ ...done, agentId: 'a1', answer: 'again' })
   await $.turn.complete({ ...done, agentId: 'a2', answer: 'verifier says' })
