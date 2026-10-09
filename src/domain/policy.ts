@@ -13,7 +13,7 @@ export type Decision =
     }
   | { skip: string }
 
-// ponytail: cortes não calibrados
+// ponytail: cortes não calibrados; recalibrar com ≥200 linhas de decisions.jsonl (distribuição de complexity/confidence por modelo escolhido)
 const HAIKU_BELOW = 0.75
 const SONNET_BELOW = 2.25
 const LOW_CONFIDENCE = 0.4
