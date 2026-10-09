@@ -22,7 +22,7 @@ const GROUP_THRESHOLD = 0.5
 const EDIT_THRESHOLD = 0.3
 // ponytail: cortes não calibrados — a verifier only on opus-tier complexity with confidence below this; recalibrar pela distribuição de confidence nas decisões opus de decisions.jsonl (≥200 linhas)
 const VERIFY_CONFIDENCE_BELOW = 0.5
-// ponytail: cortes não calibrados — deliberation noul abaixo de cada limite dá o effort correspondente; acima do último, max
+// ponytail: cortes não calibrados — deliberation noul abaixo de cada limite dá o effort correspondente; acima do último, max; recalibrar pela distribuição de deliberation em decisions.jsonl (≥200 linhas)
 const EFFORT_CUTS: readonly [number, Effort][] = [
   [0.2, 'low'],
   [0.4, 'medium'],
