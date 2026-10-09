@@ -42,7 +42,17 @@ vai para a config nem para o log. Sem chave, todo spawn roteado cai no fallback 
 | `off` | desligado; a status line mostra `jev OFF` |
 | `explicit` | só roteia spawns cuja `description` começa com `[jev]` (o marcador é removido) |
 
-Ligar e desligar: `/config`, linha `jev-orchestrator.mode`; ou nas settings:
+Ligar e desligar pelo comando `/jev-orc`:
+
+| Comando | Efeito |
+|---|---|
+| `/jev-orc` | alterna `auto` ⇄ `off` (de `explicit` vai para `off`) |
+| `/jev-orc on` / `off` / `explicit` | grava `auto` / `off` / `explicit` |
+| `/jev-orc status` | mostra o modo e a status line, sem gravar |
+
+Para escolher `model`/`effort` à mão, desligue com `/jev-orc off`; vale a partir do próximo spawn.
+
+Ou: `/config`, linha `jev-orchestrator.mode`; ou nas settings:
 
 ```json
 { "pluginConfigs": { "jev-orchestrator": { "options": { "mode": "off" } } } }

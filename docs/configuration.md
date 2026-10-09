@@ -8,7 +8,7 @@ Ajuste por `/config` (linha `jev-orchestrator.<campo>`) ou `pluginConfigs["jev-o
 
 | Campo | Tipo | Default | Opções | Descrição |
 |---|---|---|---|---|
-| `mode` | string | `auto` | `auto`, `off`, `explicit` | auto: JEV decide; off: desligado; explicit: só `[jev]` |
+| `mode` | string | `auto` | `auto`, `off`, `explicit` | auto: JEV decide; off: desligado; explicit: só `[jev]`; também muda com `/jev-orc` |
 | `effortsHaiku` | lista | `low`, `medium` | `low`..`max` | efforts permitidos com haiku; vazio desabilita o haiku |
 | `effortsSonnet` | lista | `low`, `medium`, `high` | `low`..`max` | idem, sonnet |
 | `effortsOpus` | lista | `medium`, `high`, `xhigh` | `low`..`max` | idem, opus |
