@@ -13,6 +13,7 @@ export const EMPTY_SAVINGS: Savings = { agents: 0, tokens: 0, cost: 0, estimated
 
 const PER_MTOK = 1_000_000
 
+// ponytail: haiku's higher rate above 100K prompt tokens is not modelled (usage arrives summed per turn); revisit if the host exposes per-request usage
 export const costOf = (usage: Usage, price: Price): number =>
   (usage.input_tokens * price.input +
     usage.output_tokens * price.output +
