@@ -71,8 +71,10 @@ export function routeAgentSpawns(on: On, config: Config, registered: ReadonlySet
   // ponytail: oldest-first eviction past the cap; a repeat older than 1000 routings is routed again
   const routedIds = new Set<string>()
   // Routed agents running, by agentId, freed at their turn.complete.
-  // ponytail: tool.calls in flight are not counted, so a burst can overshoot maxAgents by up to its size
   const active = new Set<string>()
+  // Slots taken by Agent calls in flight, by tool_use_id: moved to `active` at agent.spawn,
+  // released when the call ends without one.
+  const reserved = new Set<string>()
   // Primaries whose decision named a verifier, by agentId, until their turn.complete.
   const pendingVerify = new Map<string, Verification>()
   // Routed agents (and verifiers) whose usage is still to be counted, by agentId, until their turn.complete.
@@ -149,7 +151,8 @@ export function routeAgentSpawns(on: On, config: Config, registered: ReadonlySet
     try {
       const forced = decide(undefined, config)
       if ('skip' in forced) {
-        if (active.size >= config.maxAgents) throw new Error('maxAgents')
+        if (active.size + reserved.size >= config.maxAgents) throw new Error('maxAgents')
+        reserved.add(e.tool_use_id)
         if (!(await acquireJev((ms, signal) => $.clock.sleep(ms, { signal })))) throw new Error('parallelism')
         const task = { tarefa: e.prompt.slice(0, MAX_TASK_CHARS), contexto: `${type}: ${e.description}` }
         // The host follows $ only within this file, so askJev gets literal calls, not $ itself.
@@ -180,6 +183,8 @@ export function routeAgentSpawns(on: On, config: Config, registered: ReadonlySet
       routed = fallback(error ?? (err instanceof Error ? err.message : String(err)))
     }
 
+    if ('skip' in routed) reserved.delete(e.tool_use_id)
+
     let route: string | undefined
     const description = e.description.replace(MARKER, '')
     const decided = { tool_use_id: e.tool_use_id, description }
@@ -201,6 +206,7 @@ export function routeAgentSpawns(on: On, config: Config, registered: ReadonlySet
     } finally {
       if (profile) dispatching.set(profile, dispatching.get(profile)! - 1)
       decisions.delete(e.tool_use_id)
+      reserved.delete(e.tool_use_id)
     }
   })
 
@@ -218,6 +224,7 @@ export function routeAgentSpawns(on: On, config: Config, registered: ReadonlySet
       }
     }
     if (spawned === undefined || spawned.deny !== undefined) spawned = await next({ ...e, model: routed.model })
+    reserved.delete(e.tool_use_id)
     if (spawned.agentId !== undefined) {
       active.add(spawned.agentId)
       costed.set(spawned.agentId, { routed: routed.model, parentModel: e.parentModel })
@@ -242,7 +249,7 @@ export function routeAgentSpawns(on: On, config: Config, registered: ReadonlySet
     // plugin's origin, so both routing hooks pass it through (isOwnSpawn).
     const verify = async ({ tool_use_id, prompt, verifier, description }: Verification, answer: string) => {
       if (!registered.has(VERIFY_PROFILE)) return $.ui.toast(`JEV: verificador não disparado: perfil ${VERIFY_PROFILE} ausente`)
-      if (active.size >= config.maxAgents) return $.ui.toast('JEV: verificador não disparado: maxAgents')
+      if (active.size + reserved.size >= config.maxAgents) return $.ui.toast('JEV: verificador não disparado: maxAgents')
       dispatching.set(VERIFY_PROFILE, (dispatching.get(VERIFY_PROFILE) ?? 0) + 1)
       try {
         const spawned = await $.agent.spawn({

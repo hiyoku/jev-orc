@@ -244,7 +244,7 @@ test('a repeated tool_use_id is routed once', async ($, on) => {
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 1))
 
-test('10 parallel spawns: right decisions, at most parallelism JEV calls in flight', async ($, on) => {
+test('10 parallel spawns: right decisions, at most parallelism JEV calls in flight', { options: { maxAgents: 10 } }, async ($, on) => {
   let inFlight = 0
   let peak = 0
   const w = await world($, on, {
@@ -294,6 +294,26 @@ test('maxAgents reached falls back until a routed agent completes', { options: {
   await callAgent($, agent('m4'))
   expect(w.bodies).toHaveLength(2)
   expect(w.spawns[3].subagentType).toBe('jev-orchestrator:t-read')
+})
+
+test('a burst of Agent calls routes at most maxAgents, the rest falls back', { options: { maxAgents: 2 } }, async ($, on) => {
+  const w = await world($, on, { jev: async () => (await tick(), READ_ONLY) })
+  const ids = Array.from({ length: 5 }, (_, i) => `b${i}`)
+  await Promise.all(ids.map((id) => callAgent($, agent(id))))
+  await settle()
+  expect(w.bodies).toHaveLength(2)
+  expect(w.spawns.filter((s) => s.subagentType === 'jev-orchestrator:t-read')).toHaveLength(2)
+  const fallbacks = w.logLines().filter((l) => l.outcome === 'fallback')
+  expect(fallbacks).toHaveLength(3)
+  for (const l of fallbacks) expect(l.reasons).toEqual(['maxAgents'])
+})
+
+test('a slot reserved by a call that never spawns is released', { options: { maxAgents: 1, agentsTarget: ['explore'] } }, async ($, on) => {
+  const w = await world($, on, { jev: (body) => (body.state.tarefa === 'edit' ? WRITES : READ_ONLY) })
+  await Promise.all([callAgent($, agent('s1', { prompt: 'edit' })), (async () => (await tick(), callAgent($, agent('s2'))))()])
+  expect(w.bodies).toHaveLength(2)
+  expect(w.spawns.find((s) => s.tool_use_id === 's1')!.model).toBeUndefined()
+  expect(w.spawns.find((s) => s.tool_use_id === 's2')!.subagentType).toBe('jev-orchestrator:t-read')
 })
 
 // Decision log
