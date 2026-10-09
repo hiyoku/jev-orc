@@ -133,5 +133,5 @@ test('maxAgents full: the verifier is not spawned', { options: { ...MULTI, maxAg
   await $.turn.complete({ ...done, agentId: 'a1', answer: 'x' })
   await tick()
   expect(w.spawns).toHaveLength(2)
-  expect(w.toasts).toContain('JEV: verificador não disparado: maxAgents')
+  expect(w.toasts).toContain('JEV: verifier not started: maxAgents')
 })

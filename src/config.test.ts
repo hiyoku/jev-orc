@@ -1,4 +1,5 @@
 import { expect, test } from 'claude-code/testing'
+import { STRINGS, formatWarning } from './i18n'
 import { loadConfig, MAX_JEV_TIMEOUT_MS } from './config'
 
 test('defaults', () => {
@@ -55,13 +56,13 @@ test('agentsTarget ["general"] is kept; empty -> off', () => {
 test('unknown effort is dropped with a warning', () => {
   const { config, warnings } = loadConfig({ effortsSonnet: ['low', 'turbo'] })
   expect(config.allowed.get('sonnet')).toEqual(['low'])
-  expect(warnings[0]).toContain('turbo')
+  expect(formatWarning(STRINGS.en, warnings[0])).toContain('turbo')
 })
 
 test('forceEffort outside efforts* is rejected naming the field', () => {
   const { config, warnings } = loadConfig({ forceEffort: 'max' })
   expect(config.force.effort).toBe(undefined)
-  expect(warnings[0]).toContain('forceEffort=max')
+  expect(formatWarning(STRINGS.en, warnings[0])).toContain('forceEffort=max')
 })
 
 test('forceEffort inside efforts* is kept; "jev" means not forced', () => {
@@ -89,13 +90,13 @@ test('forceModel on a disabled model and forceAgent outside agentsTarget are rej
 test('forceTools drops tools in toolsDeny with a warning', () => {
   const { config, warnings } = loadConfig({ forceTools: ['Read', 'Bash'], toolsDeny: ['Bash'] })
   expect(config.force.tools).toEqual(['Read'])
-  expect(warnings[0]).toContain('Bash')
+  expect(formatWarning(STRINGS.en, warnings[0])).toContain('Bash')
 })
 
 test('invalid mode falls back to auto', () => {
   const { config, warnings } = loadConfig({ mode: 'turbo' })
   expect(config.mode).toBe('auto')
-  expect(warnings[0]).toContain('mode')
+  expect(formatWarning(STRINGS.en, warnings[0])).toContain('mode')
 })
 
 test('runs under test(name, { options }, body)', { options: { effortsHaiku: [], maxAgents: 2 } }, () => {
@@ -108,5 +109,5 @@ test('jevTimeoutMs above the hook budget ceiling falls back to the default with 
   expect(loadConfig({ jevTimeoutMs: MAX_JEV_TIMEOUT_MS }).config.jevTimeoutMs).toBe(MAX_JEV_TIMEOUT_MS)
   const { config, warnings } = loadConfig({ jevTimeoutMs: MAX_JEV_TIMEOUT_MS + 1 })
   expect(config.jevTimeoutMs).toBe(8000)
-  expect(warnings[0]).toContain('jevTimeoutMs=9001')
+  expect(formatWarning(STRINGS.en, warnings[0])).toContain('jevTimeoutMs=9001')
 })

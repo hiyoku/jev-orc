@@ -171,6 +171,21 @@ test('the key option never leaks on a failed call', { options: { typesafeApiKey:
   expect(seen.includes(OPTION_KEY)).toBe(false)
 })
 
+test('pt-BR: the missing-key toast is Portuguese and the key option still never leaks', { options: { language: 'pt-BR', typesafeApiKey: OPTION_KEY, logLevel: 'debug' } }, async ($, on) => {
+  const w = await world($, on, { jev: () => { throw new Error(`echo ${OPTION_KEY}`) } })
+  await callAgent($, agent('o3'))
+  expect(w.spawns[0].subagentType).toBe(FALLBACK_PROFILE)
+  expect(w.statuses.at(-1)).toContain('fallback')
+  const seen = JSON.stringify({ toasts: w.toasts, statuses: w.statuses, files: [...w.files], spawns: w.spawns, tools: w.tools, state: [...w.state] })
+  expect(seen.includes(OPTION_KEY)).toBe(false)
+})
+
+test('pt-BR: missing key toast', { options: { language: 'pt-BR' } }, async ($, on) => {
+  const w = await world($, on, { env: {} })
+  await callAgent($, agent('k3'))
+  expect(w.toasts[0]).toContain('chave ausente')
+})
+
 for (const blank of ['', '   ']) {
   test(`a blank key option (${JSON.stringify(blank)}) falls back to the environment`, { options: { typesafeApiKey: blank } }, async ($, on) => {
     const w = await world($, on)

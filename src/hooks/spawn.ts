@@ -2,6 +2,7 @@ import { update, type AgentSpawnResult, type EngineInterface, type On } from 'cl
 import { FALLBACK_PROFILE, PROFILE_MATCHER, profileFor } from '../agents/profiles'
 import { HOOK_BUDGET_MS, type Config, type Effort, type LogLevel, type Model } from '../config'
 import { decide } from '../domain/policy'
+import type { Strings } from '../i18n'
 import type { JevAnswers } from '../jev/answers'
 import { askJev, JevError, type JevErrorKind } from '../jev/client'
 import { jevNumbers, logDecision, type LogEntry, type LogIo } from '../log'
@@ -36,7 +37,7 @@ type JevTask = { tarefa: string; contexto: string }
 
 // The host follows $ only within this file, so the log gets literal calls, not $ itself.
 // A failure toasts once per session (`warned`) and never reaches the routing.
-function logTo($: EngineInterface, level: LogLevel, warned: { log: boolean }, entry: LogEntry, request?: JevTask) {
+function logTo($: EngineInterface, s: Strings, level: LogLevel, warned: { log: boolean }, entry: LogEntry, request?: JevTask) {
   const io: LogIo = {
     home: () => $.env.get('HOME'),
     exists: (path) => $.fs.exists(path),
@@ -46,7 +47,7 @@ function logTo($: EngineInterface, level: LogLevel, warned: { log: boolean }, en
   logDecision(io, level, entry, request, () => {
     if (warned.log) return
     warned.log = true
-    $.ui.toast('JEV: falha ao gravar o log de decisões')
+    $.ui.toast(s.toastLog)
   })
 }
 
@@ -60,7 +61,8 @@ type Verification = { tool_use_id: string; prompt: string; verifier: Model; desc
 // tool.call (Agent) decides and applies the effort; agent.spawn, correlated by tool_use_id,
 // applies model and tool profile. Fail-open: never a deny.
 // `registered` holds the profiles whose registration succeeded; any other gets the model only.
-export function routeAgentSpawns(on: On, config: Config, registered: ReadonlySet<string>) {
+// `text` is read at each use: the language is only known at session.start.
+export function routeAgentSpawns(on: On, config: Config, registered: ReadonlySet<string>, text: { s: Strings }) {
   const decisions = new Map<string, Routed>()
   // Profiles with an Agent call in flight. agent.offer also gates a rewritten subagentType, so a
   // profile is offered only during its own call and stays hidden from the model's listing.
@@ -171,12 +173,12 @@ export function routeAgentSpawns(on: On, config: Config, registered: ReadonlySet
       const decision = answers ? decide(answers, config) : forced
       const profile = profileFor(decision, config)
       if ('skip' in decision) routed = decision
-      else if (!profile) routed = { skip: `sem perfil para ${decision.toolGroups.join(',')}` }
+      else if (!profile) routed = { skip: `no profile for ${decision.toolGroups.join(',')}` }
       else routed = { model: decision.models[0], verifier: decision.models[1], effort: decision.effort, profile, reasons: decision.reasons }
     } catch (err) {
       if (err instanceof JevError && err.kind === 'missing_key' && !warnedMissingKey) {
         warnedMissingKey = true
-        $.ui.toast('JEV: chave ausente, usando o fallback; defina a chave em /plugin → Installed → jev-orchestrator → Configure options, ou em TYPESAFE_API_KEY')
+        $.ui.toast(text.s.toastMissingKey)
       }
       if (err instanceof JevError) error = err.kind
       fellBack = true
@@ -188,12 +190,12 @@ export function routeAgentSpawns(on: On, config: Config, registered: ReadonlySet
     let route: string | undefined
     const description = e.description.replace(MARKER, '')
     const decided = { tool_use_id: e.tool_use_id, description }
-    if ('skip' in routed) logTo($, config.logLevel, warned, { ...decided, outcome: 'skip', models: [], reasons: [routed.skip] }, asked)
+    if ('skip' in routed) logTo($, text.s, config.logLevel, warned, { ...decided, outcome: 'skip', models: [], reasons: [routed.skip] }, asked)
     else {
       const models = routed.verifier ? [routed.model, routed.verifier] : [routed.model]
       const jev = answers && jevNumbers(answers)
-      logTo($, config.logLevel, warned, { ...decided, outcome: fellBack ? 'fallback' : 'routed', models, effort: routed.effort, profile: routed.profile, reasons: routed.reasons, jev, error }, asked)
-      route = fellBack ? `fallback (${routed.reasons[0]})` : `${routed.model}·${routed.effort}·${routed.profile.replace(PROFILE_MATCHER, '')}`
+      logTo($, text.s, config.logLevel, warned, { ...decided, outcome: fellBack ? 'fallback' : 'routed', models, effort: routed.effort, profile: routed.profile, reasons: routed.reasons, jev, error }, asked)
+      route = fellBack ? `${text.s.fallback} (${routed.reasons[0]})` : `${routed.model}·${routed.effort}·${routed.profile.replace(PROFILE_MATCHER, '')}`
     }
     if (route !== undefined || answers) await track($, config, userEffort, (savings) => ({ ...savings, route: route ?? savings.route, jevCalls: savings.jevCalls + (answers ? 1 : 0) }))
 
@@ -248,8 +250,8 @@ export function routeAgentSpawns(on: On, config: Config, registered: ReadonlySet
     // Started unawaited: the primary's answer never waits on its verifier. Its spawn carries this
     // plugin's origin, so both routing hooks pass it through (isOwnSpawn).
     const verify = async ({ tool_use_id, prompt, verifier, description }: Verification, answer: string) => {
-      if (!registered.has(VERIFY_PROFILE)) return $.ui.toast(`JEV: verificador não disparado: perfil ${VERIFY_PROFILE} ausente`)
-      if (active.size + reserved.size >= config.maxAgents) return $.ui.toast('JEV: verificador não disparado: maxAgents')
+      if (!registered.has(VERIFY_PROFILE)) return $.ui.toast(text.s.toastVerifierProfile(VERIFY_PROFILE))
+      if (active.size + reserved.size >= config.maxAgents) return $.ui.toast(text.s.toastVerifierMax)
       dispatching.set(VERIFY_PROFILE, (dispatching.get(VERIFY_PROFILE) ?? 0) + 1)
       try {
         const spawned = await $.agent.spawn({
@@ -258,17 +260,17 @@ export function routeAgentSpawns(on: On, config: Config, registered: ReadonlySet
           subagentType: VERIFY_PROFILE,
           description: `verify: ${description}`,
         })
-        if (spawned.deny !== undefined) return $.ui.toast(`JEV: verificador recusado: ${spawned.deny}`)
+        if (spawned.deny !== undefined) return $.ui.toast(text.s.toastVerifierDenied(spawned.deny))
         if (spawned.agentId !== undefined) {
           active.add(spawned.agentId)
           costed.set(spawned.agentId, { routed: verifier, isVerifier: true })
         }
-        logTo($, config.logLevel, warned, { tool_use_id, description, outcome: 'verifier', models: [verifier], profile: VERIFY_PROFILE, reasons: [] })
+        logTo($, text.s, config.logLevel, warned, { tool_use_id, description, outcome: 'verifier', models: [verifier], profile: VERIFY_PROFILE, reasons: [] })
       } finally {
         dispatching.set(VERIFY_PROFILE, dispatching.get(VERIFY_PROFILE)! - 1)
       }
     }
-    verify(pending, e.answer).catch((err) => $.ui.toast(`JEV: verificador falhou: ${err instanceof Error ? err.message : String(err)}`))
+    verify(pending, e.answer).catch((err) => $.ui.toast(text.s.toastVerifierFailed(err instanceof Error ? err.message : String(err))))
     return next(e)
   })
 }

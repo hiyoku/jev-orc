@@ -1,8 +1,8 @@
 import type { Mode } from './config'
+import type { Strings } from './i18n'
 
 export const COMMAND_NAME = 'jev-orc'
 export const MODE_KEY = 'jev-orchestrator.mode'
-export const USAGE = 'uso: /jev-orc [on|off|explicit|status]'
 
 export type JevOrcAction = { kind: 'set'; mode: Mode } | { kind: 'status' } | { kind: 'usage' }
 
@@ -18,14 +18,7 @@ export function parseJevOrcArgs(args: string, currentMode: Mode): JevOrcAction {
   }
 }
 
-const NOTE: Record<Mode, string> = {
-  auto: 'roteamento ligado',
-  off: 'roteamento desligado; model/effort manuais valem a partir do próximo spawn',
-  explicit: 'só spawns marcados com [jev] são roteados',
-}
-
-export const changedMessage = (from: Mode, to: Mode) =>
-  from === to ? `jev-orc: já está em ${to} (${NOTE[to]})` : `jev-orc: ${from} → ${to} (${NOTE[to]})`
-export const statusMessage = (mode: Mode, line: string) => `jev-orc: ${mode} · ${line}`
-export const deniedMessage = (reason: string) => `jev-orc: não foi possível mudar o modo (${reason}); nada foi alterado`
-export const usageMessage = (arg: string) => `jev-orc: argumento inválido "${arg.trim()}"\n${USAGE}`
+export const changedMessage = (s: Strings, from: Mode, to: Mode) => s.changed(from, to, s.modeNote[to])
+export const statusMessage = (s: Strings, mode: Mode, line: string) => s.status(mode, line)
+export const deniedMessage = (s: Strings, reason: string) => s.denied(reason)
+export const usageMessage = (s: Strings, arg: string) => `${s.invalidArg(arg.trim())}\n${s.usage}`

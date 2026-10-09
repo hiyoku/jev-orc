@@ -2,25 +2,38 @@ import type { Register } from 'claude-code'
 import { COMMAND_NAME, changedMessage, deniedMessage, parseJevOrcArgs, statusMessage, usageMessage } from '../src/command'
 import { buildProfiles } from '../src/agents/profiles'
 import { loadConfig } from '../src/config'
+import { STRINGS, formatWarning, resolveLanguage, type Strings } from '../src/i18n'
 import { EMPTY_SAVINGS, formatStatus } from '../src/savings'
 import { routeAgentSpawns } from '../src/hooks/spawn'
 
 export const register: Register = (on, options) => {
   const { config, warnings } = loadConfig(options)
   const registered = new Set<string>()
+  // Set at session.start, which runs again on every module reload; English until then.
+  const text: { s: Strings } = { s: STRINGS.en }
 
   on('session.start', async ($, e, next) => {
-    for (const warning of warnings) $.ui.toast(`JEV: ${warning}`)
+    // Literal $ calls: the host scan only follows $ within this file.
+    let settingsLanguage: unknown
+    let locale: string | undefined
+    try {
+      settingsLanguage = (await $.settings.read()).language
+    } catch {} // no settings: the locale decides
+    try {
+      locale = (await $.env.get('LC_ALL')) || (await $.env.get('LC_MESSAGES')) || (await $.env.get('LANG'))
+    } catch {} // no locale: English
+    const s = (text.s = STRINGS[resolveLanguage(options.language, settingsLanguage, locale)])
+    for (const warning of warnings) $.ui.toast(formatWarning(s, warning))
     const specs = buildProfiles(config)
     const results = await Promise.allSettled(specs.map((spec) => $.agent.register(spec)))
     results.forEach((result, i) => {
       if (result.status === 'fulfilled') registered.add(result.value.agent)
-      else $.ui.toast(`JEV: perfil ${specs[i].name} não registrado: ${String(result.reason)}`)
+      else $.ui.toast(s.toastProfile(specs[i].name, String(result.reason)))
     })
     try {
       await $.command.register({
         name: COMMAND_NAME,
-        description: 'Liga/desliga o roteamento do JEV (on, off, explicit, status)',
+        description: s.commandDescription,
         argumentHint: '[on|off|explicit|status]',
         immediate: true,
       })
@@ -35,20 +48,20 @@ export const register: Register = (on, options) => {
     const action = parseJevOrcArgs(e.args, config.mode)
     const { value } = await $.state.get({ plugin: 'jev-orchestrator', key: 'savings' } as const)
     const savings = value ?? EMPTY_SAVINGS
-    if (action.kind === 'usage') return { text: usageMessage(e.args) }
+    if (action.kind === 'usage') return { text: usageMessage(text.s, e.args) }
     if (action.kind === 'status') {
-      return { text: statusMessage(config.mode, formatStatus(savings, config.mode, config.jevPricePerCall, '?')) }
+      return { text: statusMessage(text.s, config.mode, formatStatus(savings, config.mode, config.jevPricePerCall, '?')) }
     }
     try {
       const { deny } = await $.config.set({ key: 'jev-orchestrator.mode', value: action.mode })
-      if (deny !== undefined) return { text: deniedMessage(deny) }
+      if (deny !== undefined) return { text: deniedMessage(text.s, deny) }
     } catch (error) {
-      return { text: deniedMessage(String(error)) }
+      return { text: deniedMessage(text.s, String(error)) }
     }
     // The reload does not rerun session.start: the line is refreshed here.
     $.ui.status(formatStatus(savings, action.mode, config.jevPricePerCall, '?'))
-    return { text: changedMessage(config.mode, action.mode) }
+    return { text: changedMessage(text.s, config.mode, action.mode) }
   })
 
-  routeAgentSpawns(on, config, registered)
+  routeAgentSpawns(on, config, registered, text)
 }

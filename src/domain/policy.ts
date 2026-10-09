@@ -58,8 +58,8 @@ export function decide(answers: JevAnswers | undefined, config: Config): Decisio
   const writes = toolGroups.includes('edit')
 
   const profile = force.agent ?? projectProfile(writes, config.agentsTarget)
-  if (!profile) return { skip: 'tarefa escreve mas general não está em agentsTarget' }
-  reasons.push(force.agent ? `profile ${profile}: ${FORCED}` : `profile ${profile}: ${writes ? 'escreve' : 'só leitura'}`)
+  if (!profile) return { skip: 'task writes but general is not in agentsTarget' }
+  reasons.push(force.agent ? `profile ${profile}: ${FORCED}` : `profile ${profile}: ${writes ? 'writes' : 'read-only'}`)
 
   const model = force.model ?? projectModel(desiredTier(answers!), config)
   reasons.push(force.model ? `model ${model}: ${FORCED}` : `model ${model}: complexity ${answers!.complexity.score.toFixed(2)}`)

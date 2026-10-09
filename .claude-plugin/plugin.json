@@ -1,12 +1,23 @@
 {
   "name": "jev-orchestrator",
   "version": "0.1.0",
-  "description": "Roteia spawns de Agent pelo JEV (TypeSafe)",
+  "description": "Routes Agent spawns through JEV (TypeSafe)",
   "userConfig": {
+    "language": {
+      "type": "string",
+      "title": "Language",
+      "description": "Language of the plugin messages. auto: follows the Claude Code language setting, then the system locale.",
+      "default": "auto",
+      "options": [
+        "auto",
+        "en",
+        "pt-BR"
+      ]
+    },
     "mode": {
       "type": "string",
-      "title": "Modo",
-      "description": "auto: JEV decide; off: desligado; explicit: so o que for forcado",
+      "title": "Mode",
+      "description": "auto: JEV decides; off: disabled; explicit: only what is forced",
       "default": "auto",
       "options": [
         "auto",
@@ -17,8 +28,8 @@
     "effortsHaiku": {
       "type": "string",
       "multiple": true,
-      "title": "Efforts com haiku",
-      "description": "Efforts permitidos com haiku (low..max). Vazio desabilita o haiku.",
+      "title": "Efforts with haiku",
+      "description": "Efforts allowed with haiku (low..max). Empty disables haiku.",
       "default": [
         "low",
         "medium"
@@ -27,8 +38,8 @@
     "effortsSonnet": {
       "type": "string",
       "multiple": true,
-      "title": "Efforts com sonnet",
-      "description": "Efforts permitidos com sonnet (low..max). Vazio desabilita o sonnet.",
+      "title": "Efforts with sonnet",
+      "description": "Efforts allowed with sonnet (low..max). Empty disables sonnet.",
       "default": [
         "low",
         "medium",
@@ -38,8 +49,8 @@
     "effortsOpus": {
       "type": "string",
       "multiple": true,
-      "title": "Efforts com opus",
-      "description": "Efforts permitidos com opus (low..max). Vazio desabilita o opus.",
+      "title": "Efforts with opus",
+      "description": "Efforts allowed with opus (low..max). Empty disables opus.",
       "default": [
         "medium",
         "high",
@@ -49,8 +60,8 @@
     "fallbackOrder": {
       "type": "string",
       "multiple": true,
-      "title": "Ordem de fallback",
-      "description": "Modelos tentados, em ordem, quando o escolhido esta desabilitado.",
+      "title": "Fallback order",
+      "description": "Models tried, in order, when the chosen one is disabled.",
       "default": [
         "sonnet",
         "opus",
@@ -60,8 +71,8 @@
     "agentsIntercept": {
       "type": "string",
       "multiple": true,
-      "title": "Agents interceptados",
-      "description": "Tipos de agent que o mod reescreve; os demais passam intocados.",
+      "title": "Intercepted agents",
+      "description": "Agent types the mod rewrites; the others pass through untouched.",
       "default": [
         "general-purpose",
         "Explore"
@@ -70,8 +81,8 @@
     "agentsTarget": {
       "type": "string",
       "multiple": true,
-      "title": "Perfis alvo",
-      "description": "Perfis para os quais o mod pode transicionar (explore, general).",
+      "title": "Target profiles",
+      "description": "Profiles the mod may switch to (explore, general).",
       "default": [
         "explore",
         "general"
@@ -79,8 +90,8 @@
     },
     "forceModel": {
       "type": "string",
-      "title": "Forcar modelo",
-      "description": "jev: o JEV decide.",
+      "title": "Force model",
+      "description": "jev: JEV decides.",
       "default": "jev",
       "options": [
         "jev",
@@ -91,8 +102,8 @@
     },
     "forceEffort": {
       "type": "string",
-      "title": "Forcar effort",
-      "description": "Effort fixo para qualquer perfil. jev: o JEV decide.",
+      "title": "Force effort",
+      "description": "Fixed effort for any profile. jev: JEV decides.",
       "default": "jev",
       "options": [
         "jev",
@@ -105,8 +116,8 @@
     },
     "forceEffortExplore": {
       "type": "string",
-      "title": "Forcar effort (explore)",
-      "description": "Effort fixo so no perfil explore.",
+      "title": "Force effort (explore)",
+      "description": "Fixed effort for the explore profile only.",
       "default": "jev",
       "options": [
         "jev",
@@ -119,8 +130,8 @@
     },
     "forceEffortGeneral": {
       "type": "string",
-      "title": "Forcar effort (general)",
-      "description": "Effort fixo so no perfil general.",
+      "title": "Force effort (general)",
+      "description": "Fixed effort for the general profile only.",
       "default": "jev",
       "options": [
         "jev",
@@ -133,8 +144,8 @@
     },
     "forceAgent": {
       "type": "string",
-      "title": "Forcar perfil",
-      "description": "Perfil fixo. jev: o JEV decide.",
+      "title": "Force profile",
+      "description": "Fixed profile. jev: JEV decides.",
       "default": "jev",
       "options": [
         "jev",
@@ -145,14 +156,14 @@
     "forceTools": {
       "type": "string",
       "multiple": true,
-      "title": "Forcar tools",
-      "description": "Tools fixas (ainda passam por toolsDeny e pelo catalogo). Vazio: o JEV decide.",
+      "title": "Force tools",
+      "description": "Fixed tools (still filtered by toolsDeny and the catalog). Empty: JEV decides.",
       "default": []
     },
     "fallbackModel": {
       "type": "string",
-      "title": "Fallback: modelo",
-      "description": "Modelo usado quando o JEV falha.",
+      "title": "Fallback: model",
+      "description": "Model used when JEV fails.",
       "default": "sonnet",
       "options": [
         "haiku",
@@ -163,7 +174,7 @@
     "fallbackEffort": {
       "type": "string",
       "title": "Fallback: effort",
-      "description": "Effort usado quando o JEV falha.",
+      "description": "Effort used when JEV fails.",
       "default": "medium",
       "options": [
         "low",
@@ -176,73 +187,73 @@
     "fallbackAgent": {
       "type": "string",
       "title": "Fallback: agent",
-      "description": "Tipo de agent usado quando o JEV falha.",
+      "description": "Agent type used when JEV fails.",
       "default": "general-purpose"
     },
     "multiModel": {
       "type": "boolean",
-      "title": "Multi-modelo",
-      "description": "Permite modelos diferentes dentro da mesma tarefa.",
+      "title": "Multi-model",
+      "description": "Allows different models within the same task.",
       "default": false
     },
     "maxModelsPerTask": {
       "type": "number",
-      "title": "Max modelos por tarefa",
-      "description": "Inteiro >= 1.",
+      "title": "Max models per task",
+      "description": "Integer >= 1.",
       "default": 1,
       "min": 1
     },
     "maxAgents": {
       "type": "number",
       "title": "Max agents",
-      "description": "Maximo de agents por pedido.",
+      "description": "Maximum agents per request.",
       "default": 8,
       "min": 1
     },
     "parallelism": {
       "type": "number",
-      "title": "Paralelismo",
-      "description": "Agents simultaneos.",
+      "title": "Parallelism",
+      "description": "Simultaneous agents.",
       "default": 4,
       "min": 1
     },
     "toolsAllow": {
       "type": "string",
       "multiple": true,
-      "title": "Tools permitidas",
-      "description": "Nomes reais de tools que o JEV pode atribuir.",
+      "title": "Allowed tools",
+      "description": "Real tool names JEV may assign.",
       "default": []
     },
     "toolsDeny": {
       "type": "string",
       "multiple": true,
-      "title": "Tools negadas",
-      "description": "Nomes reais de tools nunca atribuidas.",
+      "title": "Denied tools",
+      "description": "Real tool names never assigned.",
       "default": []
     },
     "jevTimeoutMs": {
       "type": "number",
-      "title": "Timeout do JEV (ms)",
-      "description": "Tempo maximo de espera pelo JEV (ate 9000; o hook tem 10 s).",
+      "title": "JEV timeout (ms)",
+      "description": "Maximum wait for JEV (up to 9000; the hook has 10 s).",
       "default": 8000,
       "min": 1
     },
     "jevEndpoint": {
       "type": "string",
-      "title": "Endpoint do JEV",
-      "description": "URL da API do JEV.",
+      "title": "JEV endpoint",
+      "description": "JEV API URL.",
       "default": "https://api.typesafe.ai/v1/systemone"
     },
     "typesafeApiKey": {
       "type": "string",
       "title": "TypeSafe / JEV API key",
-      "description": "Chave da API do JEV, guardada no armazenamento seguro do sistema (Keychain no macOS). Vazia: usa TYPESAFE_API_KEY ou JEV_API_KEY do ambiente.",
+      "description": "JEV API key, kept in the system secure storage (Keychain on macOS). Empty: uses TYPESAFE_API_KEY or JEV_API_KEY from the environment.",
       "sensitive": true
     },
     "logLevel": {
       "type": "string",
       "title": "Log",
-      "description": "Nivel de log.",
+      "description": "Log level.",
       "default": "info",
       "options": [
         "off",
@@ -252,26 +263,26 @@
     },
     "priceHaiku": {
       "type": "string",
-      "title": "Preco Haiku (US$/MTok)",
-      "description": "input,output,cacheRead,cacheWrite em US$ por MTok (cache write de 5 min). Invalido volta ao default.",
+      "title": "Haiku price (US$/MTok)",
+      "description": "input,output,cacheRead,cacheWrite in US$ per MTok (5-minute cache write). Invalid falls back to the default.",
       "default": "0.1,0.5,0.01,0.125"
     },
     "priceSonnet": {
       "type": "string",
-      "title": "Preco Sonnet (US$/MTok)",
-      "description": "input,output,cacheRead,cacheWrite em US$ por MTok (cache write de 5 min). Invalido volta ao default.",
+      "title": "Sonnet price (US$/MTok)",
+      "description": "input,output,cacheRead,cacheWrite in US$ per MTok (5-minute cache write). Invalid falls back to the default.",
       "default": "2,10,0.2,2.5"
     },
     "priceOpus": {
       "type": "string",
-      "title": "Preco Opus (US$/MTok)",
-      "description": "input,output,cacheRead,cacheWrite em US$ por MTok (cache write de 5 min). Invalido volta ao default.",
+      "title": "Opus price (US$/MTok)",
+      "description": "input,output,cacheRead,cacheWrite in US$ per MTok (5-minute cache write). Invalid falls back to the default.",
       "default": "4,20,0.2,5"
     },
     "jevPricePerCall": {
       "type": "number",
-      "title": "Preco por chamada ao JEV (US$)",
-      "description": "Somado ao custo real na status line.",
+      "title": "Price per JEV call (US$)",
+      "description": "Added to the real cost in the status line.",
       "default": 0,
       "min": 0
     }

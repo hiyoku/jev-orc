@@ -1,4 +1,5 @@
 import type { HookBudget, PluginOptions } from 'claude-code'
+import { warning, type Warning } from './i18n'
 
 export const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'] as const
 export const MODELS = ['haiku', 'sonnet', 'opus'] as const
@@ -49,7 +50,7 @@ export type Config = {
 // US$ per MTok.
 export type Price = { input: number; output: number; cacheRead: number; cacheWrite: number }
 
-export type LoadedConfig = { config: Config; warnings: string[] }
+export type LoadedConfig = { config: Config; warnings: Warning[] }
 
 const DEFAULTS = {
   mode: 'auto',
@@ -84,7 +85,7 @@ const DEFAULT_PRICES: Record<Model, Price> = {
 const NOT_FORCED = ['', 'jev']
 
 export function loadConfig(options: PluginOptions): LoadedConfig {
-  const warnings: string[] = []
+  const warnings: Warning[] = []
   const read = new OptionReader(options, warnings)
 
   const mode = read.oneOf('mode', MODES, DEFAULTS.mode)
@@ -126,10 +127,10 @@ export function loadConfig(options: PluginOptions): LoadedConfig {
 
   if (enabledModels.length === 0) {
     config.mode = 'off'
-    warnings.push('nenhum modelo habilitado (todas as listas efforts* vazias): mode=off')
+    warnings.push(warning('noModels'))
   } else if (agentsTarget.length === 0) {
     config.mode = 'off'
-    warnings.push('agentsTarget vazio: mode=off')
+    warnings.push(warning('noTarget'))
   }
 
   return { config, warnings }
@@ -141,27 +142,27 @@ function readForce(
   enabledModels: Model[],
   agentsTarget: Profile[],
   toolsDeny: string[],
-  warnings: string[],
+  warnings: Warning[],
 ): Config['force'] {
   const allowedEfforts = EFFORTS.filter((effort) => enabledModels.some((model) => allowed.get(model)!.includes(effort)))
   const forced = <T extends string>(field: string, space: readonly T[], spaceName: string): T | undefined => {
     const value = read.oneOf(field, [...NOT_FORCED, ...EFFORTS, ...MODELS, ...PROFILES], '')
     if (NOT_FORCED.includes(value)) return undefined
     if ((space as readonly string[]).includes(value)) return value as T
-    warnings.push(`${field}=${value} fora de ${spaceName}: ignorado, o JEV decide`)
+    warnings.push(warning('outOfSpace', field, value, spaceName))
     return undefined
   }
 
   const tools = read.strings('forceTools', [])
   const deniedTools = tools.filter((tool) => toolsDeny.includes(tool))
-  if (deniedTools.length > 0) warnings.push(`forceTools contém tools em toolsDeny (removidas): ${deniedTools.join(', ')}`)
+  if (deniedTools.length > 0) warnings.push(warning('deniedTools', deniedTools.join(', ')))
   const permittedTools = tools.filter((tool) => !toolsDeny.includes(tool))
 
   return {
-    model: forced('forceModel', enabledModels, 'modelos habilitados'),
-    effort: forced('forceEffort', allowedEfforts, 'efforts*'),
-    effortExplore: forced('forceEffortExplore', allowedEfforts, 'efforts*'),
-    effortGeneral: forced('forceEffortGeneral', allowedEfforts, 'efforts*'),
+    model: forced('forceModel', enabledModels, 'models'),
+    effort: forced('forceEffort', allowedEfforts, 'efforts'),
+    effortExplore: forced('forceEffortExplore', allowedEfforts, 'efforts'),
+    effortGeneral: forced('forceEffortGeneral', allowedEfforts, 'efforts'),
     agent: forced('forceAgent', agentsTarget, 'agentsTarget'),
     tools: permittedTools.length > 0 ? permittedTools : undefined,
   }
@@ -191,14 +192,14 @@ function projectFallback(
 class OptionReader {
   constructor(
     private readonly options: PluginOptions,
-    private readonly warnings: string[],
+    private readonly warnings: Warning[],
   ) {}
 
   oneOf<T extends string>(field: string, valid: readonly T[], fallback: T): T {
     const value = this.options[field]
     if (value === undefined) return fallback
     if ((valid as readonly unknown[]).includes(value)) return value as T
-    this.warnings.push(`${field}=${String(value)} inválido: usando ${fallback}`)
+    this.warnings.push(warning('invalid', field, String(value), fallback))
     return fallback
   }
 
@@ -216,8 +217,7 @@ class OptionReader {
     const value = this.options[field]
     if (value === undefined) return fallback
     if (typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= max) return value
-    const range = max === Infinity ? '>= 1' : `entre 1 e ${max}`
-    this.warnings.push(`${field}=${String(value)} inválido (inteiro ${range}): usando ${fallback}`)
+    this.warnings.push(warning('invalidInt', field, String(value), max === Infinity ? '>= 1' : `1..${max}`, String(fallback)))
     return fallback
   }
 
@@ -225,7 +225,7 @@ class OptionReader {
     const value = this.options[field]
     if (value === undefined) return fallback
     if (typeof value === 'number' && Number.isFinite(value) && value >= 0) return value
-    this.warnings.push(`${field}=${String(value)} inválido (número >= 0): usando ${fallback}`)
+    this.warnings.push(warning('invalidNumber', field, String(value), String(fallback)))
     return fallback
   }
 
@@ -237,7 +237,7 @@ class OptionReader {
     if (parts.length === 4 && parts.every((n) => Number.isFinite(n) && n >= 0)) {
       return { input: parts[0], output: parts[1], cacheRead: parts[2], cacheWrite: parts[3] }
     }
-    this.warnings.push(`${field}=${String(value)} inválido (input,output,cacheRead,cacheWrite em US$/MTok): usando o default`)
+    this.warnings.push(warning('invalidPrice', field, String(value)))
     return fallback
   }
 
@@ -250,7 +250,7 @@ class OptionReader {
     const kept: T[] = []
     for (const item of this.strings(field, fallback)) {
       if ((valid as readonly string[]).includes(item)) kept.push(item as T)
-      else this.warnings.push(`${field}: valor desconhecido "${item}" descartado`)
+      else this.warnings.push(warning('unknownItem', field, item))
     }
     return kept
   }
