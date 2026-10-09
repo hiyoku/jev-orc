@@ -131,5 +131,4 @@ verificador não disparou. A recalibração será feita com dados do log (decis�
 ## Mais
 
 - [Configuração](docs/configuration.md)
-- [Limites conhecidos](docs/known-limits.md)
 - [Troubleshooting](docs/troubleshooting.md)

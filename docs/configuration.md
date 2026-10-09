@@ -1,8 +1,7 @@
 # Configuração
 
 Fonte única: `userConfig` em `.claude-plugin/plugin.json`. Em caso de divergência, vale o código
-(`src/config.ts`). Valores inválidos voltam ao default e geram aviso; o plano está em
-`docs/000_init_project/03_config.md`.
+(`src/config.ts`). Valores inválidos voltam ao default e geram aviso.
 
 Ajuste por `/config` (linha `jev-orchestrator.<campo>`) ou `pluginConfigs["jev-orchestrator"].options` nas settings.
 
