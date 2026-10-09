@@ -9,7 +9,7 @@ export type JevOrcAction = { kind: 'set'; mode: Mode } | { kind: 'status' } | { 
 // No argument toggles auto <-> off; explicit goes to off.
 export function parseJevOrcArgs(args: string, currentMode: Mode): JevOrcAction {
   switch (args.trim().toLowerCase()) {
-    case '': return { kind: 'set', mode: currentMode === 'auto' ? 'off' : 'auto' }
+    case '': return { kind: 'set', mode: currentMode === 'off' ? 'auto' : 'off' }
     case 'on': return { kind: 'set', mode: 'auto' }
     case 'off': return { kind: 'set', mode: 'off' }
     case 'explicit': return { kind: 'set', mode: 'explicit' }

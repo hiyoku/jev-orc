@@ -5,7 +5,7 @@ import { changedMessage, parseJevOrcArgs, usageMessage } from './command'
 test('parse: toggle e argumentos', () => {
   expect(parseJevOrcArgs('', 'auto')).toEqual({ kind: 'set', mode: 'off' })
   expect(parseJevOrcArgs('', 'off')).toEqual({ kind: 'set', mode: 'auto' })
-  expect(parseJevOrcArgs(' ', 'explicit')).toEqual({ kind: 'set', mode: 'auto' })
+  expect(parseJevOrcArgs(' ', 'explicit')).toEqual({ kind: 'set', mode: 'off' })
   expect(parseJevOrcArgs('on', 'off')).toEqual({ kind: 'set', mode: 'auto' })
   expect(parseJevOrcArgs('OFF', 'auto')).toEqual({ kind: 'set', mode: 'off' })
   expect(parseJevOrcArgs('explicit', 'auto')).toEqual({ kind: 'set', mode: 'explicit' })
