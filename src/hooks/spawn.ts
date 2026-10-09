@@ -235,7 +235,7 @@ export function routeAgentSpawns(on: On, config: Config, registered: ReadonlySet
 
   on('turn.complete', async ($, e, next) => {
     if (e.agentId === undefined) return next(e)
-    // ponytail: a background agent woken again runs more turns; it is freed at the first
+    // ponytail: a background agent woken again runs more turns; it is freed and costed at the first turn.complete only; revisit if the host exposes an agent-ended event
     active.delete(e.agentId)
     const cost = costed.get(e.agentId)
     costed.delete(e.agentId)
