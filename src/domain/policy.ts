@@ -20,7 +20,7 @@ const LOW_CONFIDENCE = 0.4
 const WEB_RESEARCH_FLOOR = 0.5
 const GROUP_THRESHOLD = 0.5
 const EDIT_THRESHOLD = 0.3
-// ponytail: cortes não calibrados — a verifier only on opus-tier complexity with confidence below this
+// ponytail: cortes não calibrados — a verifier only on opus-tier complexity with confidence below this; recalibrar pela distribuição de confidence nas decisões opus de decisions.jsonl (≥200 linhas)
 const VERIFY_CONFIDENCE_BELOW = 0.5
 // ponytail: cortes não calibrados — deliberation noul abaixo de cada limite dá o effort correspondente; acima do último, max
 const EFFORT_CUTS: readonly [number, Effort][] = [
