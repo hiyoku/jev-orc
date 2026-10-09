@@ -1,58 +1,61 @@
-# Configuração
+# Configuration
 
-Fonte única: `userConfig` em `.claude-plugin/plugin.json`. Em caso de divergência, vale o código
-(`src/config.ts`). Valores inválidos voltam ao default e geram aviso.
+🌐 English · [Português (Brasil)](configuration.pt-BR.md)
 
-Ajuste por `/config` (linha `jev-orchestrator.<campo>`) ou `pluginConfigs["jev-orchestrator"].options` nas settings.
+Single source: `userConfig` in `.claude-plugin/plugin.json`. If they diverge, the code
+(`src/config.ts`) wins. Invalid values revert to the default and raise a warning.
 
-| Campo | Tipo | Default | Opções | Descrição |
+Adjust via `/config` (row `jev-orchestrator.<field>`) or `pluginConfigs["jev-orchestrator"].options` in settings.
+
+| Field | Type | Default | Options | Description |
 |---|---|---|---|---|
-| `mode` | string | `auto` | `auto`, `off`, `explicit` | auto: JEV decide; off: desligado; explicit: só `[jev]`; também muda com `/jev-orc` |
-| `effortsHaiku` | lista | `low`, `medium` | `low`..`max` | efforts permitidos com haiku; vazio desabilita o haiku |
-| `effortsSonnet` | lista | `low`, `medium`, `high` | `low`..`max` | idem, sonnet |
-| `effortsOpus` | lista | `medium`, `high`, `xhigh` | `low`..`max` | idem, opus |
-| `fallbackOrder` | lista | `sonnet`, `opus`, `haiku` | modelos | ordem tentada quando o escolhido está desabilitado |
-| `agentsIntercept` | lista | `general-purpose`, `Explore` | tipos de agent | tipos que o mod reescreve; os demais passam intocados |
-| `agentsTarget` | lista | `explore`, `general` | `explore`, `general` | perfis para os quais o mod pode transicionar |
-| `forceModel` | string | `jev` | `jev`, `haiku`, `sonnet`, `opus` | `jev`: o JEV decide |
-| `forceEffort` | string | `jev` | `jev`, `low`..`max` | effort fixo para qualquer perfil |
-| `forceEffortExplore` | string | `jev` | idem | effort fixo só no perfil explore |
-| `forceEffortGeneral` | string | `jev` | idem | effort fixo só no perfil general |
-| `forceAgent` | string | `jev` | `jev`, `explore`, `general` | perfil fixo |
-| `forceTools` | lista | `[]` | nomes de tools | tools fixas; vazio: o JEV decide |
-| `fallbackModel` | string | `sonnet` | `haiku`, `sonnet`, `opus` | modelo quando o JEV falha |
-| `fallbackEffort` | string | `medium` | `low`..`max` | effort quando o JEV falha |
-| `fallbackAgent` | string | `general-purpose` | livre | tipo de agent quando o JEV falha |
-| `multiModel` | boolean | `false` | | permite modelos diferentes na mesma tarefa (verificador) |
-| `maxModelsPerTask` | number | `1` | inteiro >= 1 | máximo de modelos por tarefa |
-| `maxAgents` | number | `8` | inteiro >= 1 | máximo de agents roteados ativos |
-| `parallelism` | number | `4` | inteiro >= 1 | consultas ao JEV simultâneas |
-| `toolsAllow` | lista | `[]` | nomes ou prefixo `*` | tools que o JEV pode atribuir; vazio: sem restrição |
-| `toolsDeny` | lista | `[]` | nomes ou prefixo `*` | tools nunca atribuídas |
-| `jevTimeoutMs` | number | `8000` | inteiro 1..9000 | espera máxima pelo JEV |
-| `typesafeApiKey` | string (sensitive) | — | | chave do JEV, guardada no Keychain e ajustada em `/plugin` → Installed → jev-orchestrator → Configure options; precedência: `typesafeApiKey` → `TYPESAFE_API_KEY` → `JEV_API_KEY`; vazio ou só espaços conta como ausente |
-| `jevEndpoint` | string | `https://api.typesafe.ai/v1/systemone` | URL | API do JEV |
-| `logLevel` | string | `info` | `off`, `info`, `debug` | nível do log de decisões |
-| `priceHaiku` | string | `0.1,0.5,0.01,0.125` | `input,output,cacheRead,cacheWrite` | US$/MTok (cache write de 5 min) |
-| `priceSonnet` | string | `2,10,0.2,2.5` | idem | idem |
-| `priceOpus` | string | `4,20,0.2,5` | idem | idem |
-| `jevPricePerCall` | number | `0` | >= 0 | US$ por chamada ao JEV, somado ao custo real da status line |
+| `mode` | string | `auto` | `auto`, `off`, `explicit` | auto: JEV decides; off: disabled; explicit: only `[jev]`; also changed with `/jev-orc` |
+| `effortsHaiku` | list | `low`, `medium` | `low`..`max` | efforts allowed with haiku; empty disables haiku |
+| `effortsSonnet` | list | `low`, `medium`, `high` | `low`..`max` | same, sonnet |
+| `effortsOpus` | list | `medium`, `high`, `xhigh` | `low`..`max` | same, opus |
+| `fallbackOrder` | list | `sonnet`, `opus`, `haiku` | models | order tried when the chosen one is disabled |
+| `agentsIntercept` | list | `general-purpose`, `Explore` | agent types | types the mod rewrites; the rest pass untouched |
+| `agentsTarget` | list | `explore`, `general` | `explore`, `general` | profiles the mod may transition to |
+| `forceModel` | string | `jev` | `jev`, `haiku`, `sonnet`, `opus` | `jev`: JEV decides |
+| `forceEffort` | string | `jev` | `jev`, `low`..`max` | fixed effort for any profile |
+| `forceEffortExplore` | string | `jev` | same | fixed effort for the explore profile only |
+| `forceEffortGeneral` | string | `jev` | same | fixed effort for the general profile only |
+| `forceAgent` | string | `jev` | `jev`, `explore`, `general` | fixed profile |
+| `forceTools` | list | `[]` | tool names | fixed tools; empty: JEV decides |
+| `fallbackModel` | string | `sonnet` | `haiku`, `sonnet`, `opus` | model when JEV fails |
+| `fallbackEffort` | string | `medium` | `low`..`max` | effort when JEV fails |
+| `fallbackAgent` | string | `general-purpose` | free | agent type when JEV fails |
+| `multiModel` | boolean | `false` | | allows different models in the same task (verifier) |
+| `maxModelsPerTask` | number | `1` | integer >= 1 | maximum models per task |
+| `maxAgents` | number | `8` | integer >= 1 | maximum active routed agents |
+| `parallelism` | number | `4` | integer >= 1 | simultaneous JEV queries |
+| `toolsAllow` | list | `[]` | names or `*` suffix | tools JEV may assign; empty: no restriction |
+| `toolsDeny` | list | `[]` | names or `*` suffix | tools never assigned |
+| `jevTimeoutMs` | number | `8000` | integer 1..9000 | maximum wait for JEV |
+| `typesafeApiKey` | string (sensitive) | — | | JEV key, stored in the Keychain and set in `/plugin` → Installed → jev-orchestrator → Configure options; precedence: `typesafeApiKey` → `TYPESAFE_API_KEY` → `JEV_API_KEY`; empty or whitespace-only counts as missing |
+| `jevEndpoint` | string | `https://api.typesafe.ai/v1/systemone` | URL | JEV API |
+| `logLevel` | string | `info` | `off`, `info`, `debug` | decision log level |
+| `priceHaiku` | string | `0.1,0.5,0.01,0.125` | `input,output,cacheRead,cacheWrite` | US$/MTok (5-minute cache write) |
+| `priceSonnet` | string | `2,10,0.2,2.5` | same | same |
+| `priceOpus` | string | `4,20,0.2,5` | same | same |
+| `language` | string | `auto` | `auto`, `en`, `pt-BR` | language of plugin messages; auto: follows the Claude Code language (or the locale) and falls back to `en` |
+| `jevPricePerCall` | number | `0` | >= 0 | US$ per JEV call, added to the actual cost on the status line |
 
-Listas aceitam `low`, `medium`, `high`, `xhigh`, `max` para efforts. `*` só vale no fim do padrão
-(`mcp__context7__*`).
+Lists accept `low`, `medium`, `high`, `xhigh`, `max` for efforts. `*` only works at the end of the
+pattern (`mcp__context7__*`).
 
-## Regras de validação
+## Validation rules
 
-- Lista `efforts*` vazia desabilita o modelo. Todas vazias, ou `agentsTarget` vazio: `mode=off` com aviso.
-- Valores desconhecidos em listas (`fallbackOrder`, `agentsTarget`, `efforts*`) são descartados com aviso.
-- `fallbackModel` desabilitado: usa o primeiro habilitado de `fallbackOrder`; `fallbackEffort` fora
-  do permitido do modelo desce ao maior effort permitido abaixo dele (ou ao menor permitido).
-- Precedência dos force: `forceEffortExplore`/`forceEffortGeneral` (do perfil resolvido) vencem `forceEffort`.
-  Um force fora do espaço habilitado (modelo desabilitado, effort fora de `efforts*`, perfil fora de
-  `agentsTarget`) é ignorado, e o JEV decide.
-- `forceTools` passa por `toolsDeny` (as negadas são removidas, com aviso) e vira o perfil
-  `jev-orchestrator:forced`, com essas tools. `toolsDeny` vence `toolsAllow`.
-- Se os force cobrem model, agent, effort e tools, o JEV nem é consultado.
-- `jevTimeoutMs` acima de 9000 (ou não inteiro) é inválido e volta a 8000: o hook tem 10 s e o
-  timeout sai desse orçamento.
-- Preço inválido (não são 4 números >= 0) volta ao default com aviso.
+- An empty `efforts*` list disables the model. All empty, or empty `agentsTarget`: `mode=off` with a warning.
+- Unknown values in lists (`fallbackOrder`, `agentsTarget`, `efforts*`) are discarded with a warning.
+- Disabled `fallbackModel`: uses the first enabled one in `fallbackOrder`; a `fallbackEffort` outside
+  the model's allowed set drops to the highest allowed effort below it (or to the lowest allowed).
+- Force precedence: `forceEffortExplore`/`forceEffortGeneral` (of the resolved profile) win over `forceEffort`.
+  A force outside the enabled space (disabled model, effort outside `efforts*`, profile outside
+  `agentsTarget`) is ignored, and JEV decides.
+- `forceTools` goes through `toolsDeny` (denied ones are removed, with a warning) and becomes the
+  `jev-orchestrator:forced` profile, with those tools. `toolsDeny` wins over `toolsAllow`.
+- If the forces cover model, agent, effort, and tools, JEV is not even queried.
+- `jevTimeoutMs` above 9000 (or not an integer) is invalid and reverts to 8000: the hook has 10 s and
+  the timeout comes out of that budget.
+- An invalid price (not 4 numbers >= 0) reverts to the default with a warning.

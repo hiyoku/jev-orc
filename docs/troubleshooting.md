@@ -1,47 +1,49 @@
 # Troubleshooting
 
-## O plugin não carrega
+🌐 English · [Português (Brasil)](troubleshooting.pt-BR.md)
+
+## The plugin does not load
 
 ```bash
 claude plugin validate <repo>
-claude --debug-file ~/jev-debug.log   # com o plugin instalado pelo marketplace
+claude --debug-file ~/jev-debug.log   # with the plugin installed from the marketplace
 ```
 
-Procure no debug log por erros de `jev-orchestrator` ou `hooks`. Ao carregar, a status line mostra
-`jev ON` (ou `jev OFF`). Avisos de config aparecem como toast e vêm de valores inválidos (veja
+Look in the debug log for `jev-orchestrator` or `hooks` errors. On load, the status line shows
+`jev ON` (or `jev OFF`). Config warnings appear as a toast and come from invalid values (see
 [configuration.md](configuration.md)).
 
-## O JEV sempre cai em fallback
+## JEV always falls back
 
-Leia o campo `error` das linhas `outcome: "fallback"` do log:
+Read the `error` field of the `outcome: "fallback"` lines in the log:
 
 ```bash
 tail -n 20 ~/.claude/jev-orchestrator/decisions.jsonl | jq -c 'select(.outcome=="fallback") | {error,reasons}'
 ```
 
-| `error` | Causa |
+| `error` | Cause |
 |---|---|
-| `missing_key` | opção `typesafeApiKey` vazia (`/plugin` → Installed → jev-orchestrator → Configure options) e `TYPESAFE_API_KEY`/`JEV_API_KEY` ausentes no ambiente do `claude` |
-| `timeout` | o JEV não respondeu em `jevTimeoutMs` (máximo 9000) |
-| `network` | falha de rede ou `jevEndpoint` errado |
-| `http_<status>` | resposta HTTP de erro (ex.: `http_401`: chave inválida) |
-| `bad_payload` | resposta do JEV fora do formato esperado |
+| `missing_key` | `typesafeApiKey` option empty (`/plugin` → Installed → jev-orchestrator → Configure options) and `TYPESAFE_API_KEY`/`JEV_API_KEY` missing from the `claude` environment |
+| `timeout` | JEV did not answer within `jevTimeoutMs` (maximum 9000) |
+| `network` | network failure or wrong `jevEndpoint` |
+| `http_<status>` | HTTP error response (e.g., `http_401`: invalid key) |
+| `bad_payload` | JEV response outside the expected format |
 
-Sem `error` e com `reasons` como `maxAgents` ou `parallelism`, o limite de agents ou a fila do JEV foi atingido.
+With no `error` and `reasons` such as `maxAgents` or `parallelism`, the agent limit or the JEV queue was reached.
 
-## Uma tool esperada não aparece no perfil
+## An expected tool does not appear in the profile
 
-- Os perfis são registrados no `session.start` e restringem as tools por nome ou por prefixo de
-  servidor MCP (ex.: `mcp__context7__*`). Por isso uma tool MCP que conecta depois do início
-  da sessão já fica coberta pelo perfil; o engine é quem aplica a restrição.
-- `toolsAllow` não vazio restringe os perfis a esses nomes; `toolsDeny` vence `toolsAllow` e vira
-  `disallowedTools` em todos os perfis. Uma mudança de config recarrega o módulo e refaz os perfis.
-- A tool só entra se o grupo escolhido pelo JEV a inclui e se o servidor MCP dela está conectado.
+- Profiles are registered at `session.start` and restrict tools by name or by MCP server prefix
+  (e.g., `mcp__context7__*`). So an MCP tool that connects after the session starts is already
+  covered by the profile; the engine is what enforces the restriction.
+- A non-empty `toolsAllow` restricts the profiles to those names; `toolsDeny` wins over `toolsAllow`
+  and becomes `disallowedTools` in all profiles. A config change reloads the module and rebuilds the profiles.
+- The tool only gets in if the group JEV chose includes it and its MCP server is connected.
 
-## Permissões no headless (`claude -p`)
+## Permissions in headless mode (`claude -p`)
 
-- Comandos Bash compostos (pipes, aspas) são negados; comandos só de leitura simples passam.
-- Ler o log fora do cwd exige regra de permissão, por exemplo (settings):
+- Compound Bash commands (pipes, quotes) are denied; simple read-only commands pass.
+- Reading the log outside the cwd requires a permission rule, for example (settings):
 
 ```json
 {
@@ -54,11 +56,11 @@ Sem `error` e com `reasons` como `maxAgents` ou `parallelism`, o limite de agent
 }
 ```
 
-Isso não é falha do MOD; sem a regra, uma sessão `-p` não consegue ler o log.
+This is not a MOD failure; without the rule, a `-p` session cannot read the log.
 
-## A status line mostra `?` ou `<$0.001`
+## The status line shows `?` or `<$0.001`
 
-- `vs <modelo>/?`: o MOD ainda não viu um turno do loop principal com effort; passa no primeiro turno seguinte.
-  `vs ?/…` indica que o modelo do usuário não é haiku, sonnet nem opus.
-- `<$0.001`: a estimativa é menor que US$ 0,0005 (arredondaria para `$0.000`). Sem `~` e
-  porcentagem, não há contrafactual (modelo do usuário desconhecido ou verificador).
+- `vs <model>/?`: the MOD has not yet seen a main-loop turn with effort; it resolves on the next turn.
+  `vs ?/…` means the user's model is not haiku, sonnet, or opus.
+- `<$0.001`: the estimate is below US$ 0.0005 (it would round to `$0.000`). Without `~` and a
+  percentage, there is no counterfactual (unknown user model or verifier).
