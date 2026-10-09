@@ -1,10 +1,14 @@
-import type { PluginOptions } from 'claude-code'
+import type { HookBudget, PluginOptions } from 'claude-code'
 
 export const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'] as const
 export const MODELS = ['haiku', 'sonnet', 'opus'] as const
 export const PROFILES = ['explore', 'general'] as const
 const MODES = ['auto', 'off', 'explicit'] as const
 const LOG_LEVELS = ['off', 'info', 'debug'] as const
+
+export const HOOK_BUDGET_MS: HookBudget['ms'] = 10_000
+// The JEV timeout is a $.clock.sleep, paid from the hook's own budget: keep a second for the rest.
+export const MAX_JEV_TIMEOUT_MS = HOOK_BUDGET_MS - 1000
 
 export type Effort = (typeof EFFORTS)[number]
 export type Model = (typeof MODELS)[number]
@@ -55,7 +59,7 @@ const DEFAULTS = {
   maxModelsPerTask: 1,
   maxAgents: 8,
   parallelism: 4,
-  jevTimeoutMs: 15000,
+  jevTimeoutMs: 8000,
   jevEndpoint: 'https://api.typesafe.ai/v1/systemone',
   logLevel: 'info',
 } as const
@@ -92,7 +96,7 @@ export function loadConfig(options: PluginOptions): LoadedConfig {
     parallelism: read.positiveInt('parallelism', DEFAULTS.parallelism),
     toolsAllow: read.strings('toolsAllow', []),
     toolsDeny,
-    jevTimeoutMs: read.positiveInt('jevTimeoutMs', DEFAULTS.jevTimeoutMs),
+    jevTimeoutMs: read.positiveInt('jevTimeoutMs', DEFAULTS.jevTimeoutMs, MAX_JEV_TIMEOUT_MS),
     jevEndpoint: read.string('jevEndpoint', DEFAULTS.jevEndpoint),
     logLevel: read.oneOf('logLevel', LOG_LEVELS, DEFAULTS.logLevel),
   }
@@ -185,11 +189,12 @@ class OptionReader {
     return typeof value === 'boolean' ? value : fallback
   }
 
-  positiveInt(field: string, fallback: number): number {
+  positiveInt(field: string, fallback: number, max = Infinity): number {
     const value = this.options[field]
     if (value === undefined) return fallback
-    if (typeof value === 'number' && Number.isInteger(value) && value >= 1) return value
-    this.warnings.push(`${field}=${String(value)} inválido (inteiro >= 1): usando ${fallback}`)
+    if (typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= max) return value
+    const range = max === Infinity ? '>= 1' : `entre 1 e ${max}`
+    this.warnings.push(`${field}=${String(value)} inválido (inteiro ${range}): usando ${fallback}`)
     return fallback
   }
 

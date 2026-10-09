@@ -223,8 +223,8 @@
     "jevTimeoutMs": {
       "type": "number",
       "title": "Timeout do JEV (ms)",
-      "description": "Tempo maximo de espera pelo JEV.",
-      "default": 15000,
+      "description": "Tempo maximo de espera pelo JEV (ate 9000; o hook tem 10 s).",
+      "default": 8000,
       "min": 1
     },
     "jevEndpoint": {

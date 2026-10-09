@@ -1,5 +1,5 @@
 import { expect, test } from 'claude-code/testing'
-import { loadConfig } from './config'
+import { loadConfig, MAX_JEV_TIMEOUT_MS } from './config'
 
 test('defaults', () => {
   const { config, warnings } = loadConfig({})
@@ -11,7 +11,7 @@ test('defaults', () => {
   expect(config.fallback).toEqual({ model: 'sonnet', effort: 'medium', agent: 'general-purpose' })
   expect(config.agentsTarget).toEqual(['explore', 'general'])
   expect(config.maxAgents).toBe(8)
-  expect(config.jevTimeoutMs).toBe(15000)
+  expect(config.jevTimeoutMs).toBe(8000)
 })
 
 test('partial override keeps other defaults', () => {
@@ -102,4 +102,11 @@ test('runs under test(name, { options }, body)', { options: { effortsHaiku: [], 
   const { config } = loadConfig({ effortsHaiku: [], maxAgents: 2 })
   expect(config.allowed.get('haiku')).toEqual([])
   expect(config.maxAgents).toBe(2)
+})
+
+test('jevTimeoutMs above the hook budget ceiling falls back to the default with a warning', () => {
+  expect(loadConfig({ jevTimeoutMs: MAX_JEV_TIMEOUT_MS }).config.jevTimeoutMs).toBe(MAX_JEV_TIMEOUT_MS)
+  const { config, warnings } = loadConfig({ jevTimeoutMs: MAX_JEV_TIMEOUT_MS + 1 })
+  expect(config.jevTimeoutMs).toBe(8000)
+  expect(warnings[0]).toContain('jevTimeoutMs=9001')
 })

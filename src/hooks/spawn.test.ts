@@ -4,7 +4,7 @@ import { FALLBACK_PROFILE } from '../agents/profiles'
 import { MAX_TASK_CHARS } from './spawn'
 
 const KEY = 'sk-test'
-const TIMEOUT_MS = 15000
+const TIMEOUT_MS = 8000
 const START = { cwd: '/work', surface: null, isInteractive: false }
 // Read-only, low complexity, low deliberation: haiku + low + t-read.
 const READ_ONLY = {
