@@ -1,6 +1,6 @@
-import type { On } from 'claude-code'
+import type { AgentSpawnResult, On } from 'claude-code'
 import { FALLBACK_PROFILE, PROFILE_MATCHER, profileFor } from '../agents/profiles'
-import type { Config, Effort, Model } from '../config'
+import { HOOK_BUDGET_MS, type Config, type Effort, type Model } from '../config'
 import { decide } from '../domain/policy'
 import type { JevAnswers } from '../jev/answers'
 import { askJev, JevError } from '../jev/client'
@@ -8,9 +8,16 @@ import { askJev, JevError } from '../jev/client'
 export const MAX_TASK_CHARS = 4000
 const MARKER = /^\[jev\]\s*/
 const DEFAULT_TYPE = 'general-purpose'
+// What the hook keeps of its budget beyond the queue wait and the JEV timeout.
+const QUEUE_MARGIN_MS = 500
+const ROUTED_IDS_CAP = 1000
 
 type JevIo = Parameters<typeof askJev>[0]
 type HttpInit = Parameters<JevIo['http']['fetch']>[1]
+
+// A spawn this plugin caused, or one already on a profile of it, is never routed again.
+export const isOwnSpawn = (originPlugin: string, self: string, type: string) =>
+  originPlugin === self || PROFILE_MATCHER.test(type)
 
 type Routed = { model: Model; effort: Effort; profile: string; reason?: string } | { skip: string }
 
@@ -24,6 +31,43 @@ export function routeAgentSpawns(on: On, config: Config, registered: ReadonlySet
   // ponytail: a listing built during that window shows the profile; a per-dispatch flag if the host adds one
   const dispatching = new Map<string, number>()
   let warnedMissingKey = false
+  // ponytail: oldest-first eviction past the cap; a repeat older than 1000 routings is routed again
+  const routedIds = new Set<string>()
+  // Routed agents running, by agentId, freed at their turn.complete.
+  // ponytail: tool.calls in flight are not counted, so a burst can overshoot maxAgents by up to its size
+  const active = new Set<string>()
+  // Semaphore over the JEV calls in flight.
+  let jevInFlight = 0
+  const jevQueue: (() => void)[] = []
+  // Waiting on the queue is the hook's own time (no $ call is in flight), and the JEV timeout is
+  // a $.clock.sleep, paid from the budget too: the wait gets what is left of the budget after them.
+  const maxQueueWaitMs = HOOK_BUDGET_MS - config.jevTimeoutMs - QUEUE_MARGIN_MS
+
+  const acquireJev = async (sleep: (ms: number, signal: AbortSignal) => Promise<void>): Promise<boolean> => {
+    if (jevInFlight < config.parallelism) return (jevInFlight++, true)
+    if (maxQueueWaitMs <= 0) return false
+    let grant!: () => void
+    const granted = new Promise<void>((resolve) => (grant = resolve))
+    jevQueue.push(grant)
+    const timer = new AbortController()
+    await Promise.race([granted, sleep(maxQueueWaitMs, timer.signal).catch(() => {})])
+    timer.abort()
+    const waiting = jevQueue.indexOf(grant)
+    if (waiting === -1) return true // granted, even if in the same tick as the timeout
+    jevQueue.splice(waiting, 1)
+    return false
+  }
+  // A released slot passes straight to the next in the queue.
+  const releaseJev = () => {
+    const nextInQueue = jevQueue.shift()
+    if (nextInQueue) nextInQueue()
+    else jevInFlight--
+  }
+
+  const markRouted = (id: string) => {
+    routedIds.add(id)
+    if (routedIds.size > ROUTED_IDS_CAP) routedIds.delete(routedIds.values().next().value!)
+  }
 
   on('agent.offer', { agent: PROFILE_MATCHER }, (_$, e) => ({ isOffered: (dispatching.get(e.agent) ?? 0) > 0 }))
 
@@ -44,14 +88,18 @@ export function routeAgentSpawns(on: On, config: Config, registered: ReadonlySet
       // ponytail: the tool marks it deprecated and ignored; a teammate shows only at agent.spawn (isTeammate)
       e.team_name !== undefined ||
       !config.agentsIntercept.includes(type) ||
-      next.origin.plugin === $.plugin.name
+      isOwnSpawn(next.origin.plugin, $.plugin.name, type) ||
+      routedIds.has(e.tool_use_id)
     if (untouched) return next(e)
+    markRouted(e.tool_use_id)
 
     let routed: Routed
     try {
       const forced = decide(undefined, config)
       let answers: JevAnswers | undefined
       if ('skip' in forced) {
+        if (active.size >= config.maxAgents) throw new Error('maxAgents')
+        if (!(await acquireJev((ms, signal) => $.clock.sleep(ms, { signal })))) throw new Error('parallelism')
         const task = { tarefa: e.prompt.slice(0, MAX_TASK_CHARS), contexto: `${type}: ${e.description}` }
         // The host follows $ only within this file, so askJev gets literal calls, not $ itself.
         const io = {
@@ -59,7 +107,11 @@ export function routeAgentSpawns(on: On, config: Config, registered: ReadonlySet
           http: { fetch: (url: string, init?: HttpInit) => $.http.fetch(url, init) },
           clock: { sleep: (ms: number) => $.clock.sleep(ms) },
         } as JevIo
-        answers = await askJev(io, task, config)
+        try {
+          answers = await askJev(io, task, config)
+        } finally {
+          releaseJev()
+        }
       }
       const decision = answers ? decide(answers, config) : forced
       const profile = profileFor(decision, config)
@@ -71,7 +123,7 @@ export function routeAgentSpawns(on: On, config: Config, registered: ReadonlySet
         warnedMissingKey = true
         $.ui.toast('JEV: TYPESAFE_API_KEY ausente; usando o fallback')
       }
-      routed = fallback(err instanceof JevError ? err.kind : String(err))
+      routed = fallback(err instanceof JevError ? err.kind : err instanceof Error ? err.message : String(err))
     }
 
     // The engine raises agent.spawn inside this next(); the entry lives only for that call.
@@ -87,19 +139,27 @@ export function routeAgentSpawns(on: On, config: Config, registered: ReadonlySet
     }
   })
 
-  on('agent.spawn', async (_$, e, next) => {
+  on('agent.spawn', async ($, e, next) => {
     const routed = decisions.get(e.tool_use_id)
     decisions.delete(e.tool_use_id)
-    if (!routed || 'skip' in routed || e.fork || e.isTeammate || e.workflow) return next(e)
+    if (!routed || 'skip' in routed || isOwnSpawn(next.origin.plugin, $.plugin.name, e.subagentType) || e.fork || e.isTeammate || e.workflow) return next(e)
 
-    if (!registered.has(routed.profile)) return next({ ...e, model: routed.model })
-
-    try {
-      const spawned = await next({ ...e, model: routed.model, subagentType: routed.profile })
-      if (spawned.deny === undefined) return spawned
-    } catch {
-      // a hook beneath refused the profile: keep the model only
+    let spawned: AgentSpawnResult | undefined
+    if (registered.has(routed.profile)) {
+      try {
+        spawned = await next({ ...e, model: routed.model, subagentType: routed.profile })
+      } catch {
+        // a hook beneath refused the profile: keep the model only
+      }
     }
-    return next({ ...e, model: routed.model })
+    if (spawned === undefined || spawned.deny !== undefined) spawned = await next({ ...e, model: routed.model })
+    if (spawned.agentId !== undefined) active.add(spawned.agentId)
+    return spawned
+  })
+
+  on('turn.complete', (_$, e, next) => {
+    // ponytail: a background agent woken again runs more turns; it is freed at the first
+    if (e.agentId !== undefined) active.delete(e.agentId)
+    return next(e)
   })
 }

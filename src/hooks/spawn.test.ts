@@ -1,7 +1,7 @@
 import type { AgentSpawnInput, On } from 'claude-code'
 import { expect, mock, test, type Engine } from 'claude-code/testing'
 import { FALLBACK_PROFILE } from '../agents/profiles'
-import { MAX_TASK_CHARS } from './spawn'
+import { isOwnSpawn, MAX_TASK_CHARS } from './spawn'
 
 const KEY = 'sk-test'
 const TIMEOUT_MS = 8000
@@ -40,10 +40,12 @@ async function world($: Engine, on: On, opts: World = {}) {
   const spawns: AgentSpawnInput[] = []
   const toasts: string[] = []
   const bodies: JevBody[] = []
+  const registers: string[] = []
   mock.env(on, opts.env ?? { TYPESAFE_API_KEY: KEY })
   const clock = mock.clock(on)
   on('session.start', (_, e) => e)
   on('agent.register', (_, spec) => {
+    registers.push(spec.name)
     if (spec.name === opts.unregistered) throw new Error('refused')
     return { value: { agent: `jev-orchestrator:${spec.name}` } }
   })
@@ -60,6 +62,7 @@ async function world($: Engine, on: On, opts: World = {}) {
     tools.push(a)
     return { result: (await $.agent.spawn(spawnInput(a))) as never }
   })
+  on('turn.complete', (_, e) => ({ text: e.answer }))
   on('agent.spawn', async (_, e) => {
     const offered = await $.agent.offer({ agent: e.subagentType, description: '', source: 'plugin', provider: e.provider })
     if (!offered.isOffered) throw new Error(`names no agent this call can dispatch: ${e.subagentType}`)
@@ -67,7 +70,7 @@ async function world($: Engine, on: On, opts: World = {}) {
     return { model: e.model ?? 'inherit', agentId: `a-${e.tool_use_id}` }
   })
   await $.session.start(START)
-  return { tools, spawns, toasts, bodies, clock }
+  return { tools, spawns, toasts, bodies, registers, clock }
 }
 
 const agent = (id: string, extra: Partial<Agent> = {}): Agent => ({
@@ -190,4 +193,87 @@ test('concurrent spawns with different tool_use_ids do not mix', async ($, on) =
   expect(byId.g.model).toBe('sonnet')
   expect(byId.g.subagentType).toBe('jev-orchestrator:t-read-edit')
   expect(w.tools.find((t) => t.tool_use_id === 'g')?.effort).toBe('low')
+})
+
+
+// Recursion guard
+
+// The kit loads a plugin once, so no inline plugin can carry this plugin's origin: the
+// predicate both hooks share is checked directly (spike H6 saw the origin at runtime).
+test('a spawn this plugin caused, or on its own profile, is its own', () => {
+  expect(isOwnSpawn('jev-orchestrator', 'jev-orchestrator', 'general-purpose')).toBe(true)
+  expect(isOwnSpawn('engine', 'jev-orchestrator', 'jev-orchestrator:t-read')).toBe(true)
+  expect(isOwnSpawn('engine', 'jev-orchestrator', 'general-purpose')).toBe(false)
+})
+
+test('a jev-orchestrator:* type does not call the JEV', { options: { agentsIntercept: ['jev-orchestrator:t-read'] } }, async ($, on) => {
+  const w = await world($, on)
+  // The call itself is refused beneath: agent.offer hides the profile outside a routed call.
+  await callAgent($, agent('own', { subagent_type: 'jev-orchestrator:t-read' })).catch(() => {})
+  expect(w.bodies).toHaveLength(0)
+  expect(w.tools[0].effort).toBeUndefined()
+})
+
+test('a repeated tool_use_id is routed once', async ($, on) => {
+  const w = await world($, on)
+  await callAgent($, agent('same'))
+  await callAgent($, agent('same'))
+  expect(w.bodies).toHaveLength(1)
+  expect(w.spawns.map((s) => s.model)).toEqual(['haiku', undefined])
+})
+
+// Concurrency
+
+const tick = () => new Promise((resolve) => setTimeout(resolve, 1))
+
+test('10 parallel spawns: right decisions, at most parallelism JEV calls in flight', async ($, on) => {
+  let inFlight = 0
+  let peak = 0
+  const w = await world($, on, {
+    jev: async (body) => {
+      peak = Math.max(peak, ++inFlight)
+      await tick()
+      inFlight--
+      return body.state.tarefa === 'edit' ? WRITES : READ_ONLY
+    },
+  })
+  const ids = Array.from({ length: 10 }, (_, i) => `p${i}`)
+  await Promise.all(ids.map((id, i) => callAgent($, agent(id, { prompt: i % 2 ? 'edit' : 'read' }))))
+  expect(peak).toBe(4)
+  expect(w.bodies).toHaveLength(10)
+  expect(new Set(w.registers).size).toBe(w.registers.length)
+  for (const [i, id] of ids.entries()) {
+    const spawn = w.spawns.find((s) => s.tool_use_id === id)!
+    expect(spawn.model).toBe(i % 2 ? 'sonnet' : 'haiku')
+    expect(spawn.subagentType).toBe(i % 2 ? 'jev-orchestrator:t-read-edit' : 'jev-orchestrator:t-read')
+  }
+})
+
+test('a queue wait that would overrun the hook budget falls back', { options: { parallelism: 1 } }, async ($, on) => {
+  const w = await world($, on, { jev: () => new Promise(() => {}) })
+  const first = callAgent($, agent('holder'))
+  const second = callAgent($, agent('queued'))
+  await w.clock.advance(1500) // budget 10000 - jevTimeoutMs 8000 - margin 500
+  await second
+  expect(w.bodies).toHaveLength(1)
+  expect(w.spawns[0].tool_use_id).toBe('queued')
+  expect(w.spawns[0].subagentType).toBe(FALLBACK_PROFILE)
+  await w.clock.advance(TIMEOUT_MS)
+  await first
+})
+
+test('maxAgents reached falls back until a routed agent completes', { options: { maxAgents: 1 } }, async ($, on) => {
+  const w = await world($, on)
+  await callAgent($, agent('m1'))
+  await callAgent($, agent('m2'))
+  expect(w.bodies).toHaveLength(1)
+  expect(w.spawns.map((s) => s.subagentType)).toEqual(['jev-orchestrator:t-read', FALLBACK_PROFILE])
+  const done = { answer: '', durationMs: 1, isAborted: false, turnId: 't', reason: 'answer' } as const
+  await $.turn.complete({ ...done })
+  await callAgent($, agent('m3'))
+  expect(w.bodies).toHaveLength(1)
+  for (const id of ['a-m1', 'a-m2', 'a-m3']) await $.turn.complete({ ...done, agentId: id })
+  await callAgent($, agent('m4'))
+  expect(w.bodies).toHaveLength(2)
+  expect(w.spawns[3].subagentType).toBe('jev-orchestrator:t-read')
 })
