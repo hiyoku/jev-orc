@@ -70,6 +70,7 @@ test('abbreviations and rounding', () => {
   expect(usd(0.004)).toBe('$0.004')
   expect(usd(0.08)).toBe('$0.08')
   expect(usd(0)).toBe('$0.00')
+  expect(usd(0.0004)).toBe('<$0.001')
 })
 
 test('an invalid price falls back to the default with a warning', () => {

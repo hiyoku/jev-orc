@@ -49,7 +49,8 @@ export function addAgent(
 export const abbreviateTokens = (n: number): string =>
   n < 1000 ? String(n) : n < 999_500 ? `${Math.round(n / 1000)}k` : `${(n / PER_MTOK).toFixed(1)}M`
 
-export const usd = (value: number): string => `$${value > 0 && value < 0.01 ? value.toFixed(3) : value.toFixed(2)}`
+export const usd = (value: number): string =>
+  value > 0 && value < 0.0005 ? '<$0.001' : `$${value > 0 && value < 0.01 ? value.toFixed(3) : value.toFixed(2)}`
 
 export function formatStatus(savings: Savings, mode: Mode, jevPricePerCall: number, userEffort: string): string {
   if (mode === 'off') return 'jev OFF'
