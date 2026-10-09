@@ -128,11 +128,6 @@ O verificador roda no perfil só de leitura `jev-orchestrator:t-read`. Na valida
 confiança 0.5 quase nunca foi atingido (confiança ≥ 0.69 mesmo para pedidos vagos), então o
 verificador não disparou. A recalibração será feita com dados do log (decisão do usuário).
 
-## Skill `/jev-dispatcher`
-
-Camada de compatibilidade que mantém o nome exato `/jev-dispatcher`. Instalação por symlink e como
-reverter: [compat/README.md](compat/README.md).
-
 ## Mais
 
 - [Configuração](docs/configuration.md)

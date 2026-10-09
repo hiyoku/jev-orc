@@ -54,7 +54,7 @@ Sem `error` e com `reasons` como `maxAgents` ou `parallelism`, o limite de agent
 }
 ```
 
-Isso não é falha do MOD; sem a regra, a skill `/jev-dispatcher` não consegue ler o log no `-p`.
+Isso não é falha do MOD; sem a regra, uma sessão `-p` não consegue ler o log.
 
 ## A status line mostra `?` ou `<$0.001`
 
