@@ -1,4 +1,3 @@
-// Copied literally from ~/.claude/skills/jev-dispatcher/route.py (QUESTIONS).
 export const questions = {
   complexity: {
     type: 'score',
