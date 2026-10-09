@@ -20,6 +20,8 @@ const LOW_CONFIDENCE = 0.4
 const WEB_RESEARCH_FLOOR = 0.5
 const GROUP_THRESHOLD = 0.5
 const EDIT_THRESHOLD = 0.3
+// ponytail: cortes não calibrados — a verifier only on opus-tier complexity with confidence below this
+const VERIFY_CONFIDENCE_BELOW = 0.5
 // ponytail: cortes não calibrados — deliberation noul abaixo de cada limite dá o effort correspondente; acima do último, max
 const EFFORT_CUTS: readonly [number, Effort][] = [
   [0.2, 'low'],
@@ -68,7 +70,13 @@ export function decide(answers: JevAnswers | undefined, config: Config): Decisio
 
   if (force.tools) reasons.push(`tools ${force.tools.join(',')}: ${FORCED}`)
 
-  return { models: [model], effort, toolGroups, ...(force.tools && { forcedTools: force.tools }), profile, reasons }
+  const verifier = answers && !force.model ? verifierFor(model, answers, config) : undefined
+  if (verifier) {
+    const { score, confidence } = answers!.complexity
+    reasons.push(`verifier ${verifier}: complexity ${score.toFixed(2)}, confidence ${confidence.toFixed(2)}`)
+  }
+
+  return { models: verifier ? [model, verifier] : [model], effort, toolGroups, ...(force.tools && { forcedTools: force.tools }), profile, reasons }
 }
 
 function groupsOf(answers: JevAnswers): ToolGroup[] {
@@ -100,6 +108,17 @@ function projectModel(tier: number, config: Config): Model {
   const distance = (model: Model) => Math.abs(MODELS.indexOf(model) - tier)
   const order = (model: Model) => config.fallbackOrder.indexOf(model)
   return [...pool].sort((a, b) => distance(a) - distance(b) || order(a) - order(b))[0]
+}
+
+// The strongest enabled model other than the primary, only when the task justifies a second look.
+function verifierFor(primary: Model, { complexity }: JevAnswers, config: Config): Model | undefined {
+  const justified =
+    config.multiModel &&
+    config.maxModelsPerTask >= 2 &&
+    complexity.score >= SONNET_BELOW &&
+    complexity.confidence < VERIFY_CONFIDENCE_BELOW
+  if (!justified) return undefined
+  return MODELS.filter((model) => model !== primary && config.allowed.get(model)!.length > 0).pop()
 }
 
 function desiredEffort({ deliberation }: JevAnswers): Effort {

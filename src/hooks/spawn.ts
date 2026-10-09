@@ -11,6 +11,9 @@ const DEFAULT_TYPE = 'general-purpose'
 // What the hook keeps of its budget beyond the queue wait and the JEV timeout.
 const QUEUE_MARGIN_MS = 500
 const ROUTED_IDS_CAP = 1000
+const VERIFY_PROFILE = 'jev-orchestrator:t-read'
+const VERIFY_INSTRUCTION =
+  'Review the answer above against the task. Point out errors, gaps and risks, citing file:line. Do not edit anything.'
 
 type JevIo = Parameters<typeof askJev>[0]
 type HttpInit = Parameters<JevIo['http']['fetch']>[1]
@@ -19,7 +22,8 @@ type HttpInit = Parameters<JevIo['http']['fetch']>[1]
 export const isOwnSpawn = (originPlugin: string, self: string, type: string) =>
   originPlugin === self || PROFILE_MATCHER.test(type)
 
-type Routed = { model: Model; effort: Effort; profile: string; reason?: string } | { skip: string }
+type Routed = { model: Model; verifier?: Model; effort: Effort; profile: string; reason?: string } | { skip: string }
+type Verification = { prompt: string; verifier: Model; description: string }
 
 // tool.call (Agent) decides and applies the effort; agent.spawn, correlated by tool_use_id,
 // applies model and tool profile. Fail-open: never a deny.
@@ -36,6 +40,8 @@ export function routeAgentSpawns(on: On, config: Config, registered: ReadonlySet
   // Routed agents running, by agentId, freed at their turn.complete.
   // ponytail: tool.calls in flight are not counted, so a burst can overshoot maxAgents by up to its size
   const active = new Set<string>()
+  // Primaries whose decision named a verifier, by agentId, until their turn.complete.
+  const pendingVerify = new Map<string, Verification>()
   // Semaphore over the JEV calls in flight.
   let jevInFlight = 0
   const jevQueue: (() => void)[] = []
@@ -117,7 +123,7 @@ export function routeAgentSpawns(on: On, config: Config, registered: ReadonlySet
       const profile = profileFor(decision, config)
       if ('skip' in decision) routed = decision
       else if (!profile) routed = { skip: `sem perfil para ${decision.toolGroups.join(',')}` }
-      else routed = { model: decision.models[0], effort: decision.effort, profile, reason: decision.reasons.join('; ') }
+      else routed = { model: decision.models[0], verifier: decision.models[1], effort: decision.effort, profile, reason: decision.reasons.join('; ') }
     } catch (err) {
       if (err instanceof JevError && err.kind === 'missing_key' && !warnedMissingKey) {
         warnedMissingKey = true
@@ -153,13 +159,41 @@ export function routeAgentSpawns(on: On, config: Config, registered: ReadonlySet
       }
     }
     if (spawned === undefined || spawned.deny !== undefined) spawned = await next({ ...e, model: routed.model })
-    if (spawned.agentId !== undefined) active.add(spawned.agentId)
+    if (spawned.agentId !== undefined) {
+      active.add(spawned.agentId)
+      if (routed.verifier) pendingVerify.set(spawned.agentId, { prompt: e.prompt, verifier: routed.verifier, description: e.description })
+    }
     return spawned
   })
 
-  on('turn.complete', (_$, e, next) => {
+  on('turn.complete', ($, e, next) => {
+    if (e.agentId === undefined) return next(e)
     // ponytail: a background agent woken again runs more turns; it is freed at the first
-    if (e.agentId !== undefined) active.delete(e.agentId)
+    active.delete(e.agentId)
+    const pending = pendingVerify.get(e.agentId)
+    pendingVerify.delete(e.agentId)
+    if (!pending || e.reason !== 'answer') return next(e)
+
+    // Started unawaited: the primary's answer never waits on its verifier. Its spawn carries this
+    // plugin's origin, so both routing hooks pass it through (isOwnSpawn).
+    const verify = async ({ prompt, verifier, description }: Verification, answer: string) => {
+      if (!registered.has(VERIFY_PROFILE)) return $.ui.toast(`JEV: verificador não disparado: perfil ${VERIFY_PROFILE} ausente`)
+      if (active.size >= config.maxAgents) return $.ui.toast('JEV: verificador não disparado: maxAgents')
+      dispatching.set(VERIFY_PROFILE, (dispatching.get(VERIFY_PROFILE) ?? 0) + 1)
+      try {
+        const spawned = await $.agent.spawn({
+          prompt: `${prompt}\n\n--- Answer to review ---\n${answer}\n\n--- Your task ---\n${VERIFY_INSTRUCTION}`,
+          model: verifier,
+          subagentType: VERIFY_PROFILE,
+          description: `verify: ${description}`,
+        })
+        if (spawned.deny !== undefined) $.ui.toast(`JEV: verificador recusado: ${spawned.deny}`)
+        else if (spawned.agentId !== undefined) active.add(spawned.agentId)
+      } finally {
+        dispatching.set(VERIFY_PROFILE, dispatching.get(VERIFY_PROFILE)! - 1)
+      }
+    }
+    verify(pending, e.answer).catch((err) => $.ui.toast(`JEV: verificador falhou: ${err instanceof Error ? err.message : String(err)}`))
     return next(e)
   })
 }
