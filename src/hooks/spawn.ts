@@ -41,7 +41,7 @@ export function routeAgentSpawns(on: On, config: Config, registered: ReadonlySet
       config.mode === 'off' ||
       (config.mode === 'explicit' && !marked) ||
       type === 'fork' ||
-      e.name !== undefined ||
+      // ponytail: the tool marks it deprecated and ignored; a teammate shows only at agent.spawn (isTeammate)
       e.team_name !== undefined ||
       !config.agentsIntercept.includes(type) ||
       next.origin.plugin === $.plugin.name

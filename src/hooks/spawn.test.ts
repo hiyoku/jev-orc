@@ -16,7 +16,10 @@ const READ_ONLY = {
 // Writes, medium complexity: sonnet + t-read-edit.
 const WRITES = { ...READ_ONLY, complexity: { score: 1.5, confidence: 0.9 }, edits_files: { noul: 0.9 } }
 
-type Agent = { tool_use_id: string; description: string; prompt: string; subagent_type?: string; name?: string; model?: string; effort?: string }
+type Agent = {
+  tool_use_id: string; description: string; prompt: string; subagent_type?: string; name?: string; team_name?: string
+  model?: string; effort?: string
+}
 type JevBody = { state: { tarefa: string; contexto: string } }
 type World = {
   env?: Record<string, string>
@@ -147,11 +150,19 @@ test('explicit: only [jev]-marked calls are routed, and the marker is removed', 
 test('forks and teammates are untouched', async ($, on) => {
   const w = await world($, on)
   await callAgent($, agent('fork', { subagent_type: 'fork' }))
-  await callAgent($, agent('mate', { name: 'scout' }))
+  await callAgent($, agent('mate', { name: 'scout', team_name: 'crew' }))
   expect(w.tools.map((t) => t.effort)).toEqual([undefined, undefined])
   expect(w.bodies).toHaveLength(0)
   expect(w.spawns.map((s) => s.subagentType)).toEqual(['fork', 'general-purpose'])
   expect(w.spawns.map((s) => s.model)).toEqual([undefined, undefined])
+})
+
+test('a named subagent that is not a teammate is routed', async ($, on) => {
+  const w = await world($, on)
+  await callAgent($, agent('named', { name: 'scout' }))
+  expect(w.tools[0].effort).toBe('low')
+  expect(w.spawns[0].model).toBe('haiku')
+  expect(w.spawns[0].subagentType).toBe('jev-orchestrator:t-read')
 })
 
 test('a type outside agentsIntercept is preserved', async ($, on) => {
