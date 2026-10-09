@@ -4,7 +4,7 @@
 
 ```bash
 claude plugin validate <repo>
-claude --plugin-dir <repo> --debug-file ~/jev-debug.log
+claude --debug-file ~/jev-debug.log   # com o plugin instalado pelo marketplace
 ```
 
 Procure no debug log por erros de `jev-orchestrator` ou `hooks`. Ao carregar, a status line mostra
@@ -21,7 +21,7 @@ tail -n 20 ~/.claude/jev-orchestrator/decisions.jsonl | jq -c 'select(.outcome==
 
 | `error` | Causa |
 |---|---|
-| `missing_key` | `TYPESAFE_API_KEY`/`JEV_API_KEY` ausente no ambiente do `claude` |
+| `missing_key` | opção `typesafeApiKey` vazia (`/plugin` → Installed → jev-orchestrator → Configure options) e `TYPESAFE_API_KEY`/`JEV_API_KEY` ausentes no ambiente do `claude` |
 | `timeout` | o JEV não respondeu em `jevTimeoutMs` (máximo 9000) |
 | `network` | falha de rede ou `jevEndpoint` errado |
 | `http_<status>` | resposta HTTP de erro (ex.: `http_401`: chave inválida) |

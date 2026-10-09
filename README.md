@@ -23,16 +23,26 @@ flowchart LR
 
 ## Instalação
 
-```bash
-claude --plugin-dir <repo>
-# ou, via marketplace:
-/plugin install jev-orchestrator --marketplace hiyoku/jev-orc
+Somente pelo marketplace. Numa sessão do Claude Code:
+
+```
+/plugin marketplace add hiyoku/jev-orc
+/plugin install jev-orchestrator@jev-orchestrator
 ```
 
-## Variáveis de ambiente
+O segundo comando abre os detalhes do plugin; escolha o escopo (usuário, projeto ou local).
 
-Defina `TYPESAFE_API_KEY` (ou `JEV_API_KEY`) no ambiente de quem executa o `claude`. A chave nunca
-vai para a config nem para o log. Sem chave, todo spawn roteado cai no fallback (com um toast).
+## Chave do JEV
+
+O Claude Code oferece o diálogo de opções do plugin quando ele é habilitado pela primeira vez:
+preencha **TypeSafe / JEV API key** (`typesafeApiKey`). Para definir ou trocar depois, abra
+`/plugin` → **Installed** → `jev-orchestrator` → **Configure options**.
+
+O campo é `sensitive`: a chave fica no armazenamento seguro do sistema (Keychain no macOS), não no
+`settings.json`, e não aparece no `/config`. Com o campo vazio, vale a variável de ambiente
+`TYPESAFE_API_KEY` (ou `JEV_API_KEY`) de quem executa o `claude`. A chave nunca vai para o log, a
+status line, os toasts ou as mensagens de erro. Sem chave nenhuma, todo spawn roteado cai no
+fallback (com um toast).
 
 ## Modos
 

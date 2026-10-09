@@ -5,6 +5,8 @@ para não virar `jev-orchestrator:jev-dispatcher`, e fora dos componentes do plu
 
 ## Instalar (após validação real, tarefa 13)
 
+A skill só roteia com o plugin instalado pelo marketplace (veja o README da raiz).
+
 ```bash
 mv ~/.claude/skills/jev-dispatcher ~/.claude/skills/jev-dispatcher.bak-$(date +%Y%m%d)
 ln -s <repo>/compat/jev-dispatcher ~/.claude/skills/jev-dispatcher

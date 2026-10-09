@@ -31,6 +31,7 @@ Ajuste por `/config` (linha `jev-orchestrator.<campo>`) ou `pluginConfigs["jev-o
 | `toolsAllow` | lista | `[]` | nomes ou prefixo `*` | tools que o JEV pode atribuir; vazio: sem restrição |
 | `toolsDeny` | lista | `[]` | nomes ou prefixo `*` | tools nunca atribuídas |
 | `jevTimeoutMs` | number | `8000` | inteiro 1..9000 | espera máxima pelo JEV |
+| `typesafeApiKey` | string (sensitive) | — | | chave do JEV, guardada no Keychain e ajustada em `/plugin` → Installed → jev-orchestrator → Configure options; precedência: `typesafeApiKey` → `TYPESAFE_API_KEY` → `JEV_API_KEY`; vazio ou só espaços conta como ausente |
 | `jevEndpoint` | string | `https://api.typesafe.ai/v1/systemone` | URL | API do JEV |
 | `logLevel` | string | `info` | `off`, `info`, `debug` | nível do log de decisões |
 | `priceHaiku` | string | `0.1,0.5,0.01,0.125` | `input,output,cacheRead,cacheWrite` | US$/MTok (cache write de 5 min) |
