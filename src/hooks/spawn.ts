@@ -176,7 +176,7 @@ export function routeAgentSpawns(on: On, config: Config, registered: ReadonlySet
     } catch (err) {
       if (err instanceof JevError && err.kind === 'missing_key' && !warnedMissingKey) {
         warnedMissingKey = true
-        $.ui.toast('JEV: TYPESAFE_API_KEY ausente; usando o fallback')
+        $.ui.toast('JEV: chave ausente, usando o fallback; defina a chave em /plugin → Installed → jev-orchestrator → Configure options, ou em TYPESAFE_API_KEY')
       }
       if (err instanceof JevError) error = err.kind
       fellBack = true

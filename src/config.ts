@@ -39,6 +39,8 @@ export type Config = {
   toolsDeny: string[]
   jevTimeoutMs: number
   jevEndpoint: string
+  // Secret: never put in warnings, toasts, logs or the status line.
+  apiKey?: string
   logLevel: LogLevel
   prices: Record<Model, Price>
   jevPricePerCall: number
@@ -112,6 +114,7 @@ export function loadConfig(options: PluginOptions): LoadedConfig {
     toolsDeny,
     jevTimeoutMs: read.positiveInt('jevTimeoutMs', DEFAULTS.jevTimeoutMs, MAX_JEV_TIMEOUT_MS),
     jevEndpoint: read.string('jevEndpoint', DEFAULTS.jevEndpoint),
+    apiKey: read.string('typesafeApiKey', '').trim() || undefined,
     logLevel: read.oneOf('logLevel', LOG_LEVELS, DEFAULTS.logLevel),
     prices: {
       haiku: read.price('priceHaiku', DEFAULT_PRICES.haiku),

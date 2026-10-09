@@ -32,9 +32,9 @@ function parse(text: string): JevAnswers {
 export async function askJev(
   $: JevDollar,
   task: { tarefa: string; contexto: string },
-  config: Pick<Config, 'jevTimeoutMs' | 'jevEndpoint'>,
+  config: Pick<Config, 'jevTimeoutMs' | 'jevEndpoint' | 'apiKey'>,
 ): Promise<JevAnswers> {
-  const key = (await $.env.get('TYPESAFE_API_KEY')) || (await $.env.get('JEV_API_KEY'))
+  const key = config.apiKey || (await $.env.get('TYPESAFE_API_KEY')) || (await $.env.get('JEV_API_KEY'))
   if (!key) throw new JevError('missing_key')
 
   const req = $.http.fetch(config.jevEndpoint, {

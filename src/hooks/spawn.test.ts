@@ -42,6 +42,7 @@ async function world($: Engine, on: On, opts: World = {}) {
   const spawns: AgentSpawnInput[] = []
   const toasts: string[] = []
   const bodies: JevBody[] = []
+  const auths: (string | undefined)[] = []
   const registers: string[] = []
   const files = new Map<string, string>()
   const statuses: (string | undefined)[] = []
@@ -71,6 +72,7 @@ async function world($: Engine, on: On, opts: World = {}) {
   on('http.fetch', async (_, e) => {
     const body = JSON.parse(e.init?.body ?? '{}') as JevBody
     bodies.push(body)
+    auths.push(e.init?.headers?.Authorization)
     const answers = await (opts.jev ?? (() => READ_ONLY))(body)
     return { value: { status: 200, ok: true, headers: {}, text: JSON.stringify({ answers }) } }
   })
@@ -88,7 +90,7 @@ async function world($: Engine, on: On, opts: World = {}) {
   })
   await $.session.start(START)
   const logLines = () => (files.get(`${HOME}/${LOG_PATH}`) ?? '').split('\n').filter(Boolean).map((l) => JSON.parse(l))
-  return { tools, spawns, toasts, bodies, registers, clock, files, statuses, logLines, state }
+  return { tools, spawns, toasts, bodies, auths, registers, clock, files, statuses, logLines, state }
 }
 
 const agent = (id: string, extra: Partial<Agent> = {}): Agent => ({
@@ -145,7 +147,37 @@ test('missing key: fallback and a single toast', async ($, on) => {
   expect(w.bodies).toHaveLength(0)
   expect(w.toasts).toHaveLength(1)
   expect(w.spawns.map((s) => s.subagentType)).toEqual([FALLBACK_PROFILE, FALLBACK_PROFILE])
+  expect(w.toasts[0]).toContain('/plugin → Installed → jev-orchestrator → Configure options')
+  expect(w.toasts[0]).toContain('TYPESAFE_API_KEY')
 })
+
+const OPTION_KEY = 'fake-option-key-not-real'
+
+test('the key option wins over the environment and never leaks', { options: { typesafeApiKey: OPTION_KEY, logLevel: 'debug' } }, async ($, on) => {
+  const w = await world($, on, { env: { TYPESAFE_API_KEY: KEY, JEV_API_KEY: KEY } })
+  await callAgent($, agent('o1'))
+  expect(w.auths).toEqual([`Bearer ${OPTION_KEY}`])
+  expect(w.spawns[0].model).toBe('haiku')
+  // Everything the world captured, but the request itself.
+  const seen = JSON.stringify({ toasts: w.toasts, statuses: w.statuses, files: [...w.files], spawns: w.spawns, tools: w.tools, state: [...w.state] })
+  expect(seen.includes(OPTION_KEY)).toBe(false)
+})
+
+test('the key option never leaks on a failed call', { options: { typesafeApiKey: OPTION_KEY, logLevel: 'debug' } }, async ($, on) => {
+  const w = await world($, on, { jev: () => { throw new Error(`echo ${OPTION_KEY}`) } })
+  await callAgent($, agent('o2'))
+  expect(w.spawns[0].subagentType).toBe(FALLBACK_PROFILE)
+  const seen = JSON.stringify({ toasts: w.toasts, statuses: w.statuses, files: [...w.files], spawns: w.spawns, tools: w.tools, state: [...w.state] })
+  expect(seen.includes(OPTION_KEY)).toBe(false)
+})
+
+for (const blank of ['', '   ']) {
+  test(`a blank key option (${JSON.stringify(blank)}) falls back to the environment`, { options: { typesafeApiKey: blank } }, async ($, on) => {
+    const w = await world($, on)
+    await callAgent($, agent('b1'))
+    expect(w.auths).toEqual([`Bearer ${KEY}`])
+  })
+}
 
 test('mode=off touches nothing', { options: { mode: 'off' } }, async ($, on) => {
   const w = await world($, on)

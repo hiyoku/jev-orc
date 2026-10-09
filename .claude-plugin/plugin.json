@@ -233,6 +233,12 @@
       "description": "URL da API do JEV.",
       "default": "https://api.typesafe.ai/v1/systemone"
     },
+    "typesafeApiKey": {
+      "type": "string",
+      "title": "TypeSafe / JEV API key",
+      "description": "Chave da API do JEV, guardada no armazenamento seguro do sistema (Keychain no macOS). Vazia: usa TYPESAFE_API_KEY ou JEV_API_KEY do ambiente.",
+      "sensitive": true
+    },
     "logLevel": {
       "type": "string",
       "title": "Log",

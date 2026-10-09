@@ -16,7 +16,7 @@ const good = {
 // Plain fake `$`: the host refuses `$.env/http/clock` calls from modules that the plugin's
 // hooks don't import (it scans for them), so askJev is tested through a structural fake.
 // The "clock" is manual: sleep() resolves only when the test calls tick().
-function setup(env: Record<string, string>, res: () => Promise<unknown> | unknown) {
+function setup(env: Record<string, string>, res: () => Promise<unknown> | unknown, cfg = config) {
   const calls: { url: string; init?: { headers?: Record<string, string>; body?: string; method?: string } }[] = []
   const sleeps: (() => void)[] = []
   const $ = {
@@ -31,7 +31,7 @@ function setup(env: Record<string, string>, res: () => Promise<unknown> | unknow
     clock: { sleep: (_ms: number) => new Promise<void>((r) => { sleeps.push(r) }) },
   } as unknown as Parameters<typeof askJev>[0]
   const run = async () => {
-    try { return { ok: await askJev($, task, config) } } catch (e) { return { err: e as JevError } }
+    try { return { ok: await askJev($, task, cfg) } } catch (e) { return { err: e as JevError } }
   }
   return { run, calls, tick: () => sleeps.forEach((r) => r()) }
 }
@@ -52,6 +52,27 @@ test('JEV_API_KEY works as fallback', async () => {
   const { run, calls } = setup({ JEV_API_KEY: KEY }, () => ({ status: 200, text: JSON.stringify(good) }))
   await run()
   expect(calls[0].init?.headers?.Authorization).toBe(`Bearer ${KEY}`)
+})
+
+test('the key option wins over both variables', async () => {
+  const cfg = loadConfig({ typesafeApiKey: 'fake-option-key' }).config
+  const { run, calls } = setup({ TYPESAFE_API_KEY: KEY, JEV_API_KEY: KEY }, () => ({ status: 200, text: JSON.stringify(good) }), cfg)
+  await run()
+  expect(calls[0].init?.headers?.Authorization).toBe('Bearer fake-option-key')
+})
+
+test('a blank key option counts as unset', async () => {
+  for (const blank of ['', '  \t ']) {
+    const loaded = loadConfig({ typesafeApiKey: blank })
+    expect(loaded.config.apiKey).toBeUndefined()
+    const { run, calls } = setup({ TYPESAFE_API_KEY: KEY }, () => ({ status: 200, text: JSON.stringify(good) }), loaded.config)
+    await run()
+    expect(calls[0].init?.headers?.Authorization).toBe(`Bearer ${KEY}`)
+  }
+})
+
+test('the key option never reaches the config warnings', () => {
+  expect(loadConfig({ typesafeApiKey: 'fake-option-key', mode: 'bogus' }).warnings.join('\n').includes('fake-option-key')).toBe(false)
 })
 
 test('missing key', async () => {
