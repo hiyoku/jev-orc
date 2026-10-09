@@ -50,8 +50,8 @@ Listas aceitam `low`, `medium`, `high`, `xhigh`, `max` para efforts. `*` só val
 - Precedência dos force: `forceEffortExplore`/`forceEffortGeneral` (do perfil resolvido) vencem `forceEffort`.
   Um force fora do espaço habilitado (modelo desabilitado, effort fora de `efforts*`, perfil fora de
   `agentsTarget`) é ignorado, e o JEV decide.
-- `forceTools` passa por `toolsDeny` (as negadas são removidas, com aviso) e pelo catálogo de tools
-  disponíveis. `toolsDeny` vence `toolsAllow`.
+- `forceTools` passa por `toolsDeny` (as negadas são removidas, com aviso) e vira o perfil
+  `jev-orchestrator:forced`, com essas tools. `toolsDeny` vence `toolsAllow`.
 - Se os force cobrem model, agent, effort e tools, o JEV nem é consultado.
 - `jevTimeoutMs` acima de 9000 (ou não inteiro) é inválido e volta a 8000: o hook tem 10 s e o
   timeout sai desse orçamento.
