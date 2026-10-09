@@ -31,11 +31,12 @@ Sem `error` e com `reasons` como `maxAgents` ou `parallelism`, o limite de agent
 
 ## Uma tool esperada não aparece no perfil
 
-- Tools MCP conectam depois do `session.start`; o catálogo é lido a cada spawn, então uma tool que
-  conecta tarde só entra nos spawns seguintes.
-- `toolsAllow` não vazio restringe o JEV a esses nomes; `toolsDeny` vence `toolsAllow`. Prefixos
-  terminam em `*` (ex.: `mcp__context7__*`).
-- A tool só entra se o grupo escolhido pelo JEV a inclui e se ela existe naquele momento.
+- Os perfis são registrados no `session.start` e restringem as tools por nome ou por prefixo de
+  servidor MCP (ex.: `mcp__context7__*`). Por isso uma tool MCP que conecta depois do início
+  da sessão já fica coberta pelo perfil; o engine é quem aplica a restrição.
+- `toolsAllow` não vazio restringe os perfis a esses nomes; `toolsDeny` vence `toolsAllow` e vira
+  `disallowedTools` em todos os perfis. Uma mudança de config recarrega o módulo e refaz os perfis.
+- A tool só entra se o grupo escolhido pelo JEV a inclui e se o servidor MCP dela está conectado.
 
 ## Permissões no headless (`claude -p`)
 
