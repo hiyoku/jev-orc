@@ -39,6 +39,7 @@ as regras do usuário e do projeto, e só se ele pediu.
 
 ## 4. Se o MOD não estiver carregado
 
-Sem perfis `jev-orchestrator:*` disponíveis, ou se o usuário avisar que o MOD está fora:
+O MOD esconde de você os perfis `jev-orchestrator:*` mesmo quando está ligado: a ausência
+deles na lista de agents não indica nada. Só se o usuário avisar que o MOD está fora:
 diga isso ao usuário e siga com o fallback, passando explicitamente em cada `Agent`
 `model: sonnet`, `effort: medium` e `subagent_type: general-purpose`.
