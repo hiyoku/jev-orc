@@ -26,7 +26,7 @@ flowchart LR
 ```bash
 claude --plugin-dir <repo>
 # ou, via marketplace:
-/plugin install jev-orchestrator --marketplace <owner>/jev-orc
+/plugin install jev-orchestrator --marketplace hiyoku/jev-orc
 ```
 
 ## Variáveis de ambiente
