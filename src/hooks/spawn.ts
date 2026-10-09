@@ -1,10 +1,12 @@
-import type { AgentSpawnResult, EngineInterface, On } from 'claude-code'
+import { update, type AgentSpawnResult, type EngineInterface, type On } from 'claude-code'
 import { FALLBACK_PROFILE, PROFILE_MATCHER, profileFor } from '../agents/profiles'
 import { HOOK_BUDGET_MS, type Config, type Effort, type LogLevel, type Model } from '../config'
 import { decide } from '../domain/policy'
 import type { JevAnswers } from '../jev/answers'
 import { askJev, JevError, type JevErrorKind } from '../jev/client'
 import { jevNumbers, logDecision, type LogEntry, type LogIo } from '../log'
+import { addAgent, EMPTY_SAVINGS, formatStatus } from '../savings'
+import type { Savings } from '../../types/index'
 
 export const MAX_TASK_CHARS = 4000
 const MARKER = /^\[jev\]\s*/
@@ -15,6 +17,17 @@ const ROUTED_IDS_CAP = 1000
 const VERIFY_PROFILE = 'jev-orchestrator:t-read'
 const VERIFY_INSTRUCTION =
   'Review the answer above against the task. Point out errors, gaps and risks, citing file:line. Do not edit anything.'
+
+// Literal, as $.state needs: the savings of this session, kept by the host across a module reload.
+const SAVINGS = { plugin: 'jev-orchestrator', key: 'savings' } as const
+
+// The status never reaches the routing: a failed state write leaves the old line.
+async function track($: EngineInterface, config: Config, userEffort: string, change: (savings: Savings) => Savings) {
+  try {
+    const savings = await update($, SAVINGS, (value) => change(value ?? EMPTY_SAVINGS))
+    $.ui.status(formatStatus(savings, config.mode, config.jevPricePerCall, userEffort))
+  } catch {}
+}
 
 type JevIo = Parameters<typeof askJev>[0]
 type HttpInit = Parameters<JevIo['http']['fetch']>[1]
@@ -62,6 +75,10 @@ export function routeAgentSpawns(on: On, config: Config, registered: ReadonlySet
   const active = new Set<string>()
   // Primaries whose decision named a verifier, by agentId, until their turn.complete.
   const pendingVerify = new Map<string, Verification>()
+  // Routed agents (and verifiers) whose usage is still to be counted, by agentId, until their turn.complete.
+  const costed = new Map<string, { routed: Model; parentModel?: string; isVerifier?: boolean }>()
+  // The user's effort, as the main loop's last request asked for it; unknown until one is seen.
+  let userEffort = '?'
   // Semaphore over the JEV calls in flight.
   let jevInFlight = 0
   const jevQueue: (() => void)[] = []
@@ -94,6 +111,11 @@ export function routeAgentSpawns(on: On, config: Config, registered: ReadonlySet
     routedIds.add(id)
     if (routedIds.size > ROUTED_IDS_CAP) routedIds.delete(routedIds.values().next().value!)
   }
+
+  on('turn.step', async function* (_$, e, next) {
+    if (e.agentId === undefined && e.effort !== undefined) userEffort = String(e.effort)
+    yield* next(e)
+  })
 
   on('agent.offer', { agent: PROFILE_MATCHER }, (_$, e) => ({ isOffered: (dispatching.get(e.agent) ?? 0) > 0 }))
 
@@ -158,6 +180,7 @@ export function routeAgentSpawns(on: On, config: Config, registered: ReadonlySet
       routed = fallback(error ?? (err instanceof Error ? err.message : String(err)))
     }
 
+    let route: string | undefined
     const description = e.description.replace(MARKER, '')
     const decided = { tool_use_id: e.tool_use_id, description }
     if ('skip' in routed) logTo($, config.logLevel, warned, { ...decided, outcome: 'skip', models: [], reasons: [routed.skip] }, asked)
@@ -165,8 +188,9 @@ export function routeAgentSpawns(on: On, config: Config, registered: ReadonlySet
       const models = routed.verifier ? [routed.model, routed.verifier] : [routed.model]
       const jev = answers && jevNumbers(answers)
       logTo($, config.logLevel, warned, { ...decided, outcome: fellBack ? 'fallback' : 'routed', models, effort: routed.effort, profile: routed.profile, reasons: routed.reasons, jev, error }, asked)
-      $.ui.status(fellBack ? `jev: fallback (${routed.reasons[0]})` : `jev: ${routed.model}·${routed.effort}·${routed.profile.replace(PROFILE_MATCHER, '')}`)
+      route = fellBack ? `fallback (${routed.reasons[0]})` : `${routed.model}·${routed.effort}·${routed.profile.replace(PROFILE_MATCHER, '')}`
     }
+    if (route !== undefined || answers) await track($, config, userEffort, (savings) => ({ ...savings, route: route ?? savings.route, jevCalls: savings.jevCalls + (answers ? 1 : 0) }))
 
     // The engine raises agent.spawn inside this next(); the entry lives only for that call.
     decisions.set(e.tool_use_id, routed)
@@ -196,15 +220,20 @@ export function routeAgentSpawns(on: On, config: Config, registered: ReadonlySet
     if (spawned === undefined || spawned.deny !== undefined) spawned = await next({ ...e, model: routed.model })
     if (spawned.agentId !== undefined) {
       active.add(spawned.agentId)
+      costed.set(spawned.agentId, { routed: routed.model, parentModel: e.parentModel })
       if (routed.verifier) pendingVerify.set(spawned.agentId, { tool_use_id: e.tool_use_id, prompt: e.prompt, verifier: routed.verifier, description: e.description })
     }
     return spawned
   })
 
-  on('turn.complete', ($, e, next) => {
+  on('turn.complete', async ($, e, next) => {
     if (e.agentId === undefined) return next(e)
     // ponytail: a background agent woken again runs more turns; it is freed at the first
     active.delete(e.agentId)
+    const cost = costed.get(e.agentId)
+    costed.delete(e.agentId)
+    const usage = e.usage
+    if (cost && usage) await track($, config, userEffort, (savings) => addAgent(savings, usage, cost.routed, cost.parentModel, config.prices, cost.isVerifier))
     const pending = pendingVerify.get(e.agentId)
     pendingVerify.delete(e.agentId)
     if (!pending || e.reason !== 'answer') return next(e)
@@ -223,7 +252,10 @@ export function routeAgentSpawns(on: On, config: Config, registered: ReadonlySet
           description: `verify: ${description}`,
         })
         if (spawned.deny !== undefined) return $.ui.toast(`JEV: verificador recusado: ${spawned.deny}`)
-        if (spawned.agentId !== undefined) active.add(spawned.agentId)
+        if (spawned.agentId !== undefined) {
+          active.add(spawned.agentId)
+          costed.set(spawned.agentId, { routed: verifier, isVerifier: true })
+        }
         logTo($, config.logLevel, warned, { tool_use_id, description, outcome: 'verifier', models: [verifier], profile: VERIFY_PROFILE, reasons: [] })
       } finally {
         dispatching.set(VERIFY_PROFILE, dispatching.get(VERIFY_PROFILE)! - 1)

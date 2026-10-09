@@ -40,7 +40,12 @@ export type Config = {
   jevTimeoutMs: number
   jevEndpoint: string
   logLevel: LogLevel
+  prices: Record<Model, Price>
+  jevPricePerCall: number
 }
+
+// US$ per MTok.
+export type Price = { input: number; output: number; cacheRead: number; cacheWrite: number }
 
 export type LoadedConfig = { config: Config; warnings: string[] }
 
@@ -62,7 +67,16 @@ const DEFAULTS = {
   jevTimeoutMs: 8000,
   jevEndpoint: 'https://api.typesafe.ai/v1/systemone',
   logLevel: 'info',
+  jevPricePerCall: 0,
 } as const
+
+// Anthropic's published prices for the current family (-5-5), US$ per MTok; cache write is the
+// 5-minute TTL (1.25x input) and haiku's cache read is the documented 0.1x of its input.
+const DEFAULT_PRICES: Record<Model, Price> = {
+  haiku: { input: 0.1, output: 0.5, cacheRead: 0.01, cacheWrite: 0.125 },
+  sonnet: { input: 2, output: 10, cacheRead: 0.2, cacheWrite: 2.5 },
+  opus: { input: 4, output: 20, cacheRead: 0.2, cacheWrite: 5 },
+}
 
 // "jev" is the picker's "no override" value (an empty option is not allowed in userConfig).
 const NOT_FORCED = ['', 'jev']
@@ -99,6 +113,12 @@ export function loadConfig(options: PluginOptions): LoadedConfig {
     jevTimeoutMs: read.positiveInt('jevTimeoutMs', DEFAULTS.jevTimeoutMs, MAX_JEV_TIMEOUT_MS),
     jevEndpoint: read.string('jevEndpoint', DEFAULTS.jevEndpoint),
     logLevel: read.oneOf('logLevel', LOG_LEVELS, DEFAULTS.logLevel),
+    prices: {
+      haiku: read.price('priceHaiku', DEFAULT_PRICES.haiku),
+      sonnet: read.price('priceSonnet', DEFAULT_PRICES.sonnet),
+      opus: read.price('priceOpus', DEFAULT_PRICES.opus),
+    },
+    jevPricePerCall: read.nonNegative('jevPricePerCall', DEFAULTS.jevPricePerCall),
   }
 
   if (enabledModels.length === 0) {
@@ -195,6 +215,26 @@ class OptionReader {
     if (typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= max) return value
     const range = max === Infinity ? '>= 1' : `entre 1 e ${max}`
     this.warnings.push(`${field}=${String(value)} inválido (inteiro ${range}): usando ${fallback}`)
+    return fallback
+  }
+
+  nonNegative(field: string, fallback: number): number {
+    const value = this.options[field]
+    if (value === undefined) return fallback
+    if (typeof value === 'number' && Number.isFinite(value) && value >= 0) return value
+    this.warnings.push(`${field}=${String(value)} inválido (número >= 0): usando ${fallback}`)
+    return fallback
+  }
+
+  // "input,output,cacheRead,cacheWrite"
+  price(field: string, fallback: Price): Price {
+    const value = this.options[field]
+    if (value === undefined || value === '') return fallback
+    const parts = typeof value === 'string' ? value.split(',').map((part) => (part.trim() === '' ? NaN : Number(part))) : []
+    if (parts.length === 4 && parts.every((n) => Number.isFinite(n) && n >= 0)) {
+      return { input: parts[0], output: parts[1], cacheRead: parts[2], cacheWrite: parts[3] }
+    }
+    this.warnings.push(`${field}=${String(value)} inválido (input,output,cacheRead,cacheWrite em US$/MTok): usando o default`)
     return fallback
   }
 

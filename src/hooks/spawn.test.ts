@@ -45,6 +45,8 @@ async function world($: Engine, on: On, opts: World = {}) {
   const registers: string[] = []
   const files = new Map<string, string>()
   const statuses: (string | undefined)[] = []
+  // $.state held by the host: it outlives the plugin's module, as across a reload.
+  const state = new Map<string, { value: unknown; version: number }>()
   mock.env(on, { HOME, ...(opts.env ?? { TYPESAFE_API_KEY: KEY }) })
   const clock = mock.clock(on)
   on('session.start', (_, e) => e)
@@ -56,6 +58,13 @@ async function world($: Engine, on: On, opts: World = {}) {
   on('agent.offer', () => ({ isOffered: true }))
   on('ui.toast', (_, e) => (toasts.push(e.text), { value: undefined }))
   on('ui.status', (_, e) => (statuses.push(e.text), { value: undefined }))
+  on('state.get', (_, e) => ({ value: state.get(e.key) ?? { value: undefined, version: 0 } }))
+  on('state.set', (_, e) => {
+    const held = state.get(e.key) ?? { value: undefined, version: 0 }
+    if (e.ifVersion !== undefined && e.ifVersion !== held.version) return { value: { isSet: false, version: held.version } }
+    state.set(e.key, { value: e.value, version: held.version + 1 })
+    return { value: { isSet: true, version: held.version + 1 } }
+  })
   on('fs.exists', (_, e) => ({ value: files.has(e.path) }))
   on('fs.read', (_, e) => ({ value: files.get(e.path)! }))
   on('fs.write', (_, e) => (files.set(e.path, e.text), { value: undefined }))
@@ -79,7 +88,7 @@ async function world($: Engine, on: On, opts: World = {}) {
   })
   await $.session.start(START)
   const logLines = () => (files.get(`${HOME}/${LOG_PATH}`) ?? '').split('\n').filter(Boolean).map((l) => JSON.parse(l))
-  return { tools, spawns, toasts, bodies, registers, clock, files, statuses, logLines }
+  return { tools, spawns, toasts, bodies, registers, clock, files, statuses, logLines, state }
 }
 
 const agent = (id: string, extra: Partial<Agent> = {}): Agent => ({
@@ -301,7 +310,7 @@ test('one log line per routed spawn, and the status names the routing', async ($
     tool_use_id: 'l1', description: 'read file', outcome: 'routed', models: ['haiku'], effort: 'low',
     profile: 'jev-orchestrator:t-read', jev: { complexity: 0.2, complexity_confidence: 0.9, deliberation: 0.1 },
   })
-  expect(w.statuses.at(-1)).toBe('jev: haiku·low·t-read')
+  expect(w.statuses.at(-1)).toBe('jev ON · haiku·low·t-read')
 })
 
 test('fallback logs the error kind and never the key', async ($, on) => {
@@ -311,7 +320,7 @@ test('fallback logs the error kind and never the key', async ($, on) => {
   await call
   await settle()
   expect(w.logLines()[0]).toMatchObject({ outcome: 'fallback', error: 'timeout', models: ['sonnet'], effort: 'medium' })
-  expect(w.statuses.at(-1)).toBe('jev: fallback (timeout)')
+  expect(w.statuses.at(-1)).toBe('jev ON · fallback (timeout)')
   for (const text of w.files.values()) expect(text).not.toContain(KEY)
 })
 
@@ -345,4 +354,41 @@ test('10 parallel spawns write 10 whole lines', async ($, on) => {
   await Promise.all(ids.map((id) => callAgent($, agent(id))))
   await settle()
   expect(w.logLines().map((l) => l.tool_use_id).sort()).toEqual([...ids].sort())
+})
+
+// Savings status
+
+const usage = { input_tokens: 40_000, output_tokens: 2_000, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 }
+const done = { durationMs: 1, isAborted: false, turnId: 't', reason: 'answer', answer: 'ok' } as const
+
+test('session.start shows ON', async ($, on) => {
+  expect((await world($, on)).statuses.at(-1)).toBe('jev ON')
+})
+
+test('mode off shows OFF', { options: { mode: 'off' } }, async ($, on) => {
+  expect((await world($, on)).statuses.at(-1)).toBe('jev OFF')
+})
+
+test('a routed agent turn adds its usage, priced at its model against the parent model', { options: { jevPricePerCall: 0.015 } }, async ($, on) => {
+  const w = await world($, on)
+  await callAgent($, agent('s1'))
+  await $.turn.complete({ ...done, agentId: 'a-s1', usage: { ...usage, model: 'claude-haiku-5-5' } })
+  // haiku: 40k*0.1 + 2k*0.5 = $0.005 for the agent, $0.02 with the JEV call; the parent (haiku) would cost $0.005
+  expect(w.statuses.at(-1)).toBe('jev ON · haiku·low·t-read · 42k tok $0.02 · vs haiku/? ~$0.005 (+300%)')
+})
+
+test('the savings survive a module reload, kept in $.state', async ($, on) => {
+  const w = await world($, on)
+  w.state.set('savings', { version: 1, value: { agents: 1, tokens: 1000, cost: 0.5, estimated: 1, jevCalls: 0, parent: 'opus', route: '' } })
+  await callAgent($, agent('s2'))
+  await $.turn.complete({ ...done, agentId: 'a-s2', usage: { ...usage, model: 'claude-haiku-5-5' } })
+  expect(w.state.get('savings')?.value).toMatchObject({ agents: 2, tokens: 43_000 })
+  expect(w.statuses.at(-1)).toContain('43k tok')
+})
+
+test('a turn without a routed agent changes nothing', async ($, on) => {
+  const w = await world($, on)
+  await $.turn.complete({ ...done, agentId: 'stranger', usage: { ...usage, model: 'claude-haiku-5-5' } })
+  expect(w.state.has('savings')).toBe(false)
+  expect(w.statuses.at(-1)).toBe('jev ON')
 })

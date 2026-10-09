@@ -1,6 +1,7 @@
 import type { Register } from 'claude-code'
 import { buildProfiles } from '../src/agents/profiles'
 import { loadConfig } from '../src/config'
+import { EMPTY_SAVINGS, formatStatus } from '../src/savings'
 import { routeAgentSpawns } from '../src/hooks/spawn'
 
 export const register: Register = (on, options) => {
@@ -15,6 +16,9 @@ export const register: Register = (on, options) => {
       if (result.status === 'fulfilled') registered.add(result.value.agent)
       else $.ui.toast(`JEV: perfil ${specs[i].name} não registrado: ${String(result.reason)}`)
     })
+    // What the host kept across a module reload; the user's effort is not seen yet.
+    const { value } = await $.state.get({ plugin: 'jev-orchestrator', key: 'savings' } as const)
+    $.ui.status(formatStatus(value ?? EMPTY_SAVINGS, config.mode, config.jevPricePerCall, '?'))
     return next(e)
   })
 

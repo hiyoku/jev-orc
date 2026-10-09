@@ -243,6 +243,32 @@
         "info",
         "debug"
       ]
+    },
+    "priceHaiku": {
+      "type": "string",
+      "title": "Preco Haiku (US$/MTok)",
+      "description": "input,output,cacheRead,cacheWrite em US$ por MTok (cache write de 5 min). Invalido volta ao default.",
+      "default": "0.1,0.5,0.01,0.125"
+    },
+    "priceSonnet": {
+      "type": "string",
+      "title": "Preco Sonnet (US$/MTok)",
+      "description": "input,output,cacheRead,cacheWrite em US$ por MTok (cache write de 5 min). Invalido volta ao default.",
+      "default": "2,10,0.2,2.5"
+    },
+    "priceOpus": {
+      "type": "string",
+      "title": "Preco Opus (US$/MTok)",
+      "description": "input,output,cacheRead,cacheWrite em US$ por MTok (cache write de 5 min). Invalido volta ao default.",
+      "default": "4,20,0.2,5"
+    },
+    "jevPricePerCall": {
+      "type": "number",
+      "title": "Preco por chamada ao JEV (US$)",
+      "description": "Somado ao custo real na status line.",
+      "default": 0,
+      "min": 0
     }
-  }
+  },
+  "types": "./types/index.d.ts"
 }
