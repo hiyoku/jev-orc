@@ -24,7 +24,7 @@ export const costOf = (usage: Usage, price: Price): number =>
 export const familyOf = (modelId: string | undefined): Model | undefined => MODELS.find((model) => modelId?.includes(model))
 
 // A routed agent: its tokens at the routed model's price against the same tokens at the parent's.
-// ponytail: the counterfactual does not model how much the effort changes the token count.
+// ponytail: the counterfactual does not model how much the effort changes the token count; revisit by measuring tokens per effort level in decisions.jsonl and applying a per-level factor if the gap matters.
 // A verifier is extra work the user would not have run: real cost only, no counterfactual.
 export function addAgent(
   savings: Savings,
