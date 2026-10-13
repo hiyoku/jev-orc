@@ -161,7 +161,3 @@ escreve nada.
 
 - [Configuração](docs/configuration.pt-BR.md)
 - [Troubleshooting](docs/troubleshooting.pt-BR.md)
-
-## Licença
-
-[MIT](LICENSE)

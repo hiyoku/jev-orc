@@ -158,7 +158,3 @@ the task only with `logLevel=debug` (cut to 200 characters); `logLevel=off` writ
 
 - [Configuration](docs/configuration.md)
 - [Troubleshooting](docs/troubleshooting.md)
-
-## License
-
-[MIT](LICENSE)
