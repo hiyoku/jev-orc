@@ -149,7 +149,19 @@ fora o cache do prompt. Custa uma chamada ao JEV, e até 8 s de espera, antes de
 prompt. A status line mostra `prompt·<effort>` e o log uma entrada com `"outcome":"main"`; sem o
 JEV, o prompt fica com o seu effort.
 
+## Privacidade
+
+A cada spawn de subagente roteado (e a cada prompt, com `mainEffort` ligado) o texto da tarefa,
+cortado em 4000 caracteres, é enviado ao endpoint do JEV (`jevEndpoint`: TypeSafe ou OpenRouter).
+Nada mais sai da sua máquina. A chave fica no armazenamento seguro do sistema. O log local de
+decisões guarda a tarefa só com `logLevel=debug` (cortada em 200 caracteres); `logLevel=off` não
+escreve nada.
+
 ## Mais
 
 - [Configuração](docs/configuration.pt-BR.md)
 - [Troubleshooting](docs/troubleshooting.pt-BR.md)
+
+## Licença
+
+[MIT](LICENSE)

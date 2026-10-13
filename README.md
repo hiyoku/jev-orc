@@ -147,7 +147,18 @@ prompt cache. It costs one JEV call, and up to 8 s of wait, before each prompt. 
 status line shows `prompt·<effort>` and the log an entry with `"outcome":"main"`; without JEV the
 prompt keeps your effort.
 
+## Privacy
+
+For each routed subagent spawn (and each prompt, with `mainEffort` on) the task text, cut to 4000
+characters, is sent to the JEV endpoint (`jevEndpoint`: TypeSafe, or OpenRouter). Nothing else
+leaves your machine. The key is kept in the system secure storage. The local decision log holds
+the task only with `logLevel=debug` (cut to 200 characters); `logLevel=off` writes nothing.
+
 ## More
 
 - [Configuration](docs/configuration.md)
 - [Troubleshooting](docs/troubleshooting.md)
+
+## License
+
+[MIT](LICENSE)
