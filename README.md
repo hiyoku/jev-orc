@@ -171,6 +171,15 @@ characters, is sent to the JEV endpoint (`jevEndpoint`: TypeSafe, or OpenRouter)
 leaves your machine. The key is kept in the system secure storage. The local decision log holds
 the task only with `logLevel=debug` (cut to 200 characters); `logLevel=off` writes nothing.
 
+## Contributing
+
+Any improvement is welcome: a bug fix, a clearer doc, a better question for JEV, a new idea. You do not need to ask first.
+
+1. Open an [issue](https://github.com/hiyoku/jev-orc/issues) to discuss it, or go straight to a pull request.
+2. Fork the repo, create a branch from `main`, and make your change. Small, focused PRs are easier to review.
+3. Run `claude plugin test .` and `claude plugin validate .`; both should pass.
+4. Open a pull request against `main` and say what changed and why. Commit messages follow the style of the history (`feat(scope): summary`).
+
 ## More
 
 - [Configuration](docs/configuration.md)

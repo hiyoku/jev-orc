@@ -174,6 +174,15 @@ Nada mais sai da sua máquina. A chave fica no armazenamento seguro do sistema. 
 decisões guarda a tarefa só com `logLevel=debug` (cortada em 200 caracteres); `logLevel=off` não
 escreve nada.
 
+## Contribuindo
+
+Qualquer melhoria é bem-vinda: correção de bug, doc mais clara, uma pergunta melhor para o JEV, uma ideia nova. Não precisa pedir permissão antes.
+
+1. Abra uma [issue](https://github.com/hiyoku/jev-orc/issues) para conversar, ou vá direto para um pull request.
+2. Faça um fork, crie uma branch a partir da `main` e faça a sua mudança. PRs pequenos e focados são mais fáceis de revisar.
+3. Rode `claude plugin test .` e `claude plugin validate .`; os dois devem passar.
+4. Abra um pull request para a `main` dizendo o que mudou e por quê. As mensagens de commit seguem o estilo do histórico (`feat(escopo): resumo`).
+
 ## Mais
 
 - [Configuração](docs/configuration.pt-BR.md)
