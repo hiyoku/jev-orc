@@ -48,7 +48,7 @@ Sem `error` e com `reasons` como `maxAgents` ou `parallelism`, o limite de agent
   "permissions": {
     "allow": [
       "Read(~/.claude/jev-orchestrator/**)",
-      "Bash(tail -n * ~/.claude/jev-orchestrator/decisions.jsonl)"
+      "Bash(tail -n 20 ~/.claude/jev-orchestrator/decisions.jsonl)"
     ]
   }
 }
