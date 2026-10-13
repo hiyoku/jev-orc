@@ -1,5 +1,5 @@
 import { expect, test } from 'claude-code/testing'
-import { LOG_PATH, logDecision, ROTATE_CHARS, type LogEntry, type LogIo } from './log'
+import { LOG_PATH, fromJevNumbers, jevNumbers, logDecision, ROTATE_CHARS, type LogEntry, type LogIo } from './log'
 
 const HOME = '/home/u'
 const PATH = `${HOME}/${LOG_PATH}`
@@ -71,4 +71,19 @@ test('a failing write reaches onError and the queue goes on', async () => {
   await settle()
   expect(errors).toBe(1)
   expect(m.lines().map((l) => l.tool_use_id)).toEqual(['ok'])
+})
+
+test('fromJevNumbers inverts jevNumbers and rejects missing numbers', () => {
+  const answers = {
+    complexity: { score: 2.5, confidence: 0.75 },
+    deliberation: { noul: 0.5 },
+    edits_files: { noul: 1 },
+    runs_shell: { noul: 0 },
+    web_research: { noul: 0.25 },
+    library_docs: { noul: 0.1 },
+    browser: { noul: 0.9 },
+  }
+  expect(fromJevNumbers(jevNumbers(answers))).toEqual(answers)
+  const { complexity_confidence: _, ...partial } = jevNumbers(answers)
+  expect(fromJevNumbers(partial)).toBeUndefined()
 })

@@ -1,6 +1,7 @@
 import type { LogLevel } from './config'
 import type { JevAnswers } from './jev/answers'
 import type { JevErrorKind } from './jev/client'
+import { questions } from './jev/questions'
 
 // Under HOME: no data directory in the plugin API, and $.store is a key-value JSON, not a file to tail.
 export const LOG_PATH = '.claude/jev-orchestrator/decisions.jsonl'
@@ -38,6 +39,18 @@ export const jevNumbers = (answers: JevAnswers): Record<string, number> =>
       'score' in a ? [[name, round(a.score)], [`${name}_confidence`, round(a.confidence)]] : [[name, round(a.noul)]],
     ),
   )
+
+// Inverse of jevNumbers: undefined if any number is missing or not finite.
+export function fromJevNumbers(numbers: Record<string, number>): JevAnswers | undefined {
+  const out: Record<string, unknown> = {}
+  for (const [name, q] of Object.entries(questions)) {
+    const keys = q.type === 'score' ? [name, `${name}_confidence`] : [name]
+    const [a, b] = keys.map(k => numbers[k])
+    if (!keys.every(k => Number.isFinite(numbers[k]))) return undefined
+    out[name] = q.type === 'score' ? { score: a, confidence: b } : { noul: a }
+  }
+  return out as JevAnswers
+}
 
 // No $ API appends, so a write reads the file and writes it back whole. One queue per module keeps
 // parallel spawns from interleaving or losing lines.
