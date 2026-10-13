@@ -1,5 +1,5 @@
 {
-  "name": "jev-orchestrator",
+  "name": "jev-orc",
   "owner": { "name": "Hideki Inoue" },
   "plugins": [{ "name": "jev-orchestrator", "source": "./" }]
 }

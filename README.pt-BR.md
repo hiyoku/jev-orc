@@ -29,7 +29,7 @@ Somente pelo marketplace. Numa sessão do Claude Code:
 
 ```
 /plugin marketplace add hiyoku/jev-orc
-/plugin install jev-orchestrator@jev-orchestrator
+/plugin install jev-orchestrator@jev-orc
 ```
 
 O segundo comando abre os detalhes do plugin; escolha o escopo (usuário, projeto ou local).
