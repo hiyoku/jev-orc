@@ -93,7 +93,7 @@ async function world($: Engine, on: On, opts: World = {}) {
   })
   on('turn.complete', (_, e) => ({ text: e.answer }))
   on('agent.spawn', async (_, e) => {
-    const offered = await $.agent.offer({ agent: e.subagentType, description: '', source: 'plugin', provider: e.provider })
+    const offered = await $.agent.offer({ agent: e.subagentType, description: '', source: e.provider.plugin === 'engine' ? 'built-in' : 'plugin', provider: e.provider })
     if (!offered.isOffered) throw new Error(`names no agent this call can dispatch: ${e.subagentType}`)
     spawns.push(e)
     return { model: e.model ?? 'inherit', agentId: `a-${e.tool_use_id}` }
