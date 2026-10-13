@@ -48,11 +48,13 @@ Sem `error` e com `reasons` como `maxAgents` ou `parallelism`, o limite de agent
   "permissions": {
     "allow": [
       "Read(~/.claude/jev-orchestrator/**)",
-      "Bash(tail -n * ~/.claude/jev-orchestrator/decisions.jsonl)"
+      "Bash(tail -n 20 ~/.claude/jev-orchestrator/decisions.jsonl)"
     ]
   }
 }
 ```
+
+A regra usa o valor exato `20` em vez de `*` de propósito: o Claude Code avisa sobre regra com "a wildcard before the rest of the command", pois o `*` também casa com opções inseridas e as aprovaria sem prompt. Se usar outro N, adicione uma regra por valor.
 
 Isso não é falha do MOD; sem a regra, uma sessão `-p` não consegue ler o log.
 

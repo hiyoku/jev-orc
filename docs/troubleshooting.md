@@ -48,11 +48,13 @@ With no `error` and `reasons` such as `maxAgents` or `parallelism`, the agent li
   "permissions": {
     "allow": [
       "Read(~/.claude/jev-orchestrator/**)",
-      "Bash(tail -n * ~/.claude/jev-orchestrator/decisions.jsonl)"
+      "Bash(tail -n 20 ~/.claude/jev-orchestrator/decisions.jsonl)"
     ]
   }
 }
 ```
+
+The rule uses the exact value `20` instead of `*` on purpose: Claude Code warns about a rule with "a wildcard before the rest of the command", because `*` also matches inserted options and would approve them without a prompt. If you use another N, add one rule per value.
 
 This is not a MOD failure; without the rule, a `-p` session cannot read the log.
 
