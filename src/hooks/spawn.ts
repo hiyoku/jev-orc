@@ -40,7 +40,7 @@ async function track($: EngineInterface, config: Config, efforts: Efforts, chang
       total = change(((await $.store.get(TOTAL_KEY)) as Savings | undefined) ?? EMPTY_SAVINGS)
       await $.store.set(TOTAL_KEY, total)
     } catch {} // no store: the session's line alone
-    $.ui.status(formatStatus(savings, config.mode, efforts.user, total, efforts.prompt))
+    $.ui.status(formatStatus(savings, config.mode, { userEffort: efforts.user, total, promptEffort: efforts.prompt, style: config.statusStyle, compare: config.compareModel }))
   } catch {}
 }
 

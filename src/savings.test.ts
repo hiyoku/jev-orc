@@ -31,7 +31,7 @@ test('an unknown parent model leaves no estimate, and it stays unknown', () => {
   const s = addAgent(EMPTY_SAVINGS, MILLION, 'haiku', 'mystery', prices, 'auto')
   expect(s.estimated).toBeNull()
   expect(addAgent(s, MILLION, 'haiku', 'claude-opus-5-5', prices, 'auto').estimated).toBeNull()
-  expect(formatStatus(s, 'auto', 'high')).toBe('jev ON · 4.0M tok $0.73 · vs ?/high')
+  expect(formatStatus(s, 'auto', { userEffort: 'high' })).toBe('jev ON · 4.0M tok $0.73 · vs ?/high')
 })
 
 test('a verifier adds cost and tokens but no counterfactual', () => {
@@ -43,26 +43,56 @@ test('a verifier adds cost and tokens but no counterfactual', () => {
 })
 
 test('status: OFF, ON, ON with the route, and complete', () => {
-  expect(formatStatus(EMPTY_SAVINGS, 'off', 'high')).toBe('jev OFF')
-  expect(formatStatus(EMPTY_SAVINGS, 'auto', 'high')).toBe('jev ON')
-  expect(formatStatus({ ...EMPTY_SAVINGS, route: 'haiku·low·t-read' }, 'explicit', 'high')).toBe('jev ON · haiku·low·t-read')
+  expect(formatStatus(EMPTY_SAVINGS, 'off', { userEffort: 'high' })).toBe('jev OFF')
+  expect(formatStatus(EMPTY_SAVINGS, 'auto', { userEffort: 'high' })).toBe('jev ON')
+  expect(formatStatus({ ...EMPTY_SAVINGS, route: 'haiku·low·t-read' }, 'explicit', { userEffort: 'high' })).toBe('jev ON · haiku·low·t-read')
   const full = { agents: 1, tokens: 42_000, cost: 0.08, estimated: 0.31, jevCalls: 0, parent: 'opus', route: 'haiku·low·t-read' }
-  expect(formatStatus(full, 'auto', 'high')).toBe('jev ON · haiku·low·t-read · 42k tok $0.08 · vs opus/high ~$0.31 (-74%)')
+  expect(formatStatus(full, 'auto', { userEffort: 'high' })).toBe('jev ON · haiku·low·t-read · 42k tok $0.08 · vs opus/high ~$0.31 (-74%)')
 })
 
 test('a routed agent dearer than the parent shows +x%', () => {
   const s = { agents: 1, tokens: 1000, cost: 0.4, estimated: 0.1, jevCalls: 0, parent: 'haiku', route: '' }
-  expect(formatStatus(s, 'auto', 'low')).toContain('(+300%)')
+  expect(formatStatus(s, 'auto', { userEffort: 'low' })).toContain('(+300%)')
 })
 
 test('the total across sessions shows from a fresh session on', () => {
   const total = { agents: 12, tokens: 900_000, cost: 1.3, estimated: 2, jevCalls: 0, parent: 'opus', route: '' }
-  expect(formatStatus(EMPTY_SAVINGS, 'auto', '?', total)).toBe('jev ON · total $1.30 (-35%)')
-  expect(formatStatus(EMPTY_SAVINGS, 'auto', '?', { ...total, estimated: null })).toBe('jev ON · total $1.30')
-  expect(formatStatus(EMPTY_SAVINGS, 'auto', '?', EMPTY_SAVINGS)).toBe('jev ON')
-  expect(formatStatus(EMPTY_SAVINGS, 'off', '?', total)).toBe('jev OFF')
-  expect(formatStatus(EMPTY_SAVINGS, 'auto', '?', undefined, 'high')).toBe('jev ON — high')
-  expect(formatStatus(EMPTY_SAVINGS, 'off', '?', undefined, 'low')).toBe('jev OFF — low')
+  expect(formatStatus(EMPTY_SAVINGS, 'auto', { total })).toBe('jev ON · total $1.30 (-35%)')
+  expect(formatStatus(EMPTY_SAVINGS, 'auto', { total: { ...total, estimated: null } })).toBe('jev ON · total $1.30')
+  expect(formatStatus(EMPTY_SAVINGS, 'auto', { total: EMPTY_SAVINGS })).toBe('jev ON')
+  expect(formatStatus(EMPTY_SAVINGS, 'off', { total })).toBe('jev OFF')
+  expect(formatStatus(EMPTY_SAVINGS, 'auto', { promptEffort: 'high' })).toBe('jev ON — high')
+  expect(formatStatus(EMPTY_SAVINGS, 'off', { promptEffort: 'low' })).toBe('jev OFF — low')
+})
+
+const G = { power: '\uf011', route: '\uf0e7', tokens: '\uf1c0', cost: '\uf0d6', compare: '\uf0ec', total: '\uf1da', effort: '\uf2db' }
+const nerdFull = { agents: 1, tokens: 42_000, cost: 0.08, estimated: 0.31, jevCalls: 0, parent: 'opus', route: 'haiku·low·t-read' }
+const nerdTotal = { agents: 2, tokens: 1, cost: 1, estimated: 2, jevCalls: 0, parent: 'opus', route: '' }
+
+test('nerd status: icon segments split by a bar', () => {
+  expect(formatStatus(nerdFull, 'auto', { userEffort: 'high', total: nerdTotal, promptEffort: 'high', style: 'nerd' })).toBe(
+    `${G.power} jev ON │ ${G.route} haiku·low·t-read │ ${G.tokens} 42k tok │ ${G.cost} $0.08 │ ${G.compare} vs opus/high ~$0.31 (-74%) │ ${G.total} total $1.00 (-50%) │ ${G.effort} high`,
+  )
+  expect(formatStatus(EMPTY_SAVINGS, 'auto', { style: 'nerd' })).toBe(`${G.power} jev ON`)
+})
+
+test('nerd status: OFF keeps only the power and effort segments', () => {
+  expect(formatStatus(nerdFull, 'off', { total: nerdTotal, promptEffort: 'low', style: 'nerd' })).toBe(`${G.power} jev OFF │ ${G.effort} low`)
+  expect(formatStatus(EMPTY_SAVINGS, 'off', { style: 'nerd' })).toBe(`${G.power} jev OFF`)
+})
+
+test('nerd status: a fixed compare model is named without the effort', () => {
+  expect(formatStatus({ ...nerdFull, parent: 'fable', route: '' }, 'auto', { userEffort: 'high', style: 'nerd', compare: 'fable' })).toBe(
+    `${G.power} jev ON │ ${G.tokens} 42k tok │ ${G.cost} $0.08 │ ${G.compare} vs fable ~$0.31 (-74%)`,
+  )
+  expect(formatStatus(nerdFull, 'auto', { userEffort: 'high', compare: 'fable' })).toContain(' · vs fable ~$0.31')
+})
+
+test('nerd status: an unknown effort shows no effort segment, an unknown estimate no price', () => {
+  const s = { ...nerdFull, estimated: null }
+  expect(formatStatus(s, 'auto', { style: 'nerd' })).toBe(
+    `${G.power} jev ON │ ${G.route} haiku·low·t-read │ ${G.tokens} 42k tok │ ${G.cost} $0.08 │ ${G.compare} vs opus/?`,
+  )
 })
 
 test('abbreviations and rounding', () => {

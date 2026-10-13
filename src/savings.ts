@@ -1,4 +1,4 @@
-import type { CompareModel, Mode, Model, PricedModel, Price } from './config'
+import type { CompareModel, Mode, Model, PricedModel, Price, StatusStyle } from './config'
 import { PRICED_MODELS } from './config'
 import type { Savings } from '../types/index'
 
@@ -61,23 +61,35 @@ function percentVs(real: number, estimated: number | null): string {
   return ` (${percent > 0 ? '+' : ''}${percent}%)`
 }
 
+// Font Awesome glyphs of the Nerd Fonts, as escapes: the source never carries the characters.
+const NERD = { power: '\uf011', route: '\uf0e7', tokens: '\uf1c0', cost: '\uf0d6', compare: '\uf0ec', total: '\uf1da', effort: '\uf2db' } as const
+
+// `userEffort`: the effort the main loop's last request asked for (the counterfactual's), `?` while unknown.
 // `total`: every session's savings, kept in $.store; shown from the first routed agent ever.
-// `promptEffort`: the effort the main loop's last request ran with, after a dash; hidden while unknown.
-export function formatStatus(savings: Savings, mode: Mode, userEffort: string, total?: Savings, promptEffort = '?'): string {
-  const effort = promptEffort === '?' ? '' : ` — ${promptEffort}`
-  if (mode === 'off') return `jev OFF${effort}`
-  const parts = ['jev ON']
-  if (savings.route) parts.push(savings.route)
-  if (savings.agents > 0) {
-    const real = savings.cost
-    parts.push(`${abbreviateTokens(savings.tokens)} tok ${usd(real)}`)
-    const versus = `vs ${savings.parent}/${userEffort}`
-    const estimated = savings.estimated
-    parts.push(estimated === null || estimated <= 0 ? versus : `${versus} ~${usd(estimated)}${percentVs(real, estimated)}`)
+// `promptEffort`: the effort the main loop's last request ran with; hidden while unknown.
+// `style`: plain is text with dots and a dash; nerd is icon segments split by a bar.
+// `compare`: auto names the session's model with its effort; a fixed model names itself only.
+export type StatusView = { userEffort?: string; total?: Savings; promptEffort?: string; style?: StatusStyle; compare?: CompareModel }
+
+export function formatStatus(savings: Savings, mode: Mode, view: StatusView = {}): string {
+  const { userEffort = '?', total, promptEffort = '?', style = 'plain', compare = 'auto' } = view
+  const nerd = style === 'nerd'
+  // [icon, text]: plain drops the icon and the segments are joined below.
+  const parts: [keyof typeof NERD, string][] = [['power', mode === 'off' ? 'jev OFF' : 'jev ON']]
+  if (mode !== 'off') {
+    if (savings.route) parts.push(['route', savings.route])
+    if (savings.agents > 0) {
+      const real = savings.cost
+      const tokens = `${abbreviateTokens(savings.tokens)} tok`
+      if (nerd) parts.push(['tokens', tokens], ['cost', usd(real)])
+      else parts.push(['tokens', `${tokens} ${usd(real)}`])
+      const versus = `vs ${compare === 'auto' ? `${savings.parent}/${userEffort}` : compare}`
+      const estimated = savings.estimated
+      parts.push(['compare', estimated === null || estimated <= 0 ? versus : `${versus} ~${usd(estimated)}${percentVs(real, estimated)}`])
+    }
+    if (total && total.agents > 0) parts.push(['total', `total ${usd(total.cost)}${percentVs(total.cost, total.estimated)}`])
   }
-  if (total && total.agents > 0) {
-    const real = total.cost
-    parts.push(`total ${usd(real)}${percentVs(real, total.estimated)}`)
-  }
-  return parts.join(' · ') + effort
+  if (promptEffort !== '?' && nerd) parts.push(['effort', promptEffort])
+  const plainEffort = promptEffort === '?' ? '' : ` — ${promptEffort}`
+  return nerd ? parts.map(([icon, text]) => `${NERD[icon]} ${text}`).join(' │ ') : parts.map(([, text]) => text).join(' · ') + plainEffort
 }

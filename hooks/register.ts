@@ -10,6 +10,8 @@ import type { Savings } from '../types/index'
 export const register: Register = (on, options) => {
   const { config, warnings } = loadConfig(options)
   const registered = new Set<string>()
+  // The status view the registration shares; the user's effort is not seen here yet.
+  const view = (total?: Savings) => ({ total, style: config.statusStyle, compare: config.compareModel })
   // Set at session.start, which runs again on every module reload; English until then.
   const text: { s: Strings } = { s: STRINGS.en }
 
@@ -42,7 +44,7 @@ export const register: Register = (on, options) => {
     // What the host kept across a module reload; the user's effort is not seen yet.
     const { value } = await $.state.get({ plugin: 'jev-orchestrator', key: 'savings' } as const)
     const total = (await $.store.get(TOTAL_KEY).catch(() => undefined)) as Savings | undefined
-    $.ui.status(formatStatus(value ?? EMPTY_SAVINGS, config.mode, '?', total))
+    $.ui.status(formatStatus(value ?? EMPTY_SAVINGS, config.mode, view(total)))
     return next(e)
   })
 
@@ -53,7 +55,7 @@ export const register: Register = (on, options) => {
     const total = (await $.store.get(TOTAL_KEY).catch(() => undefined)) as Savings | undefined
     if (action.kind === 'usage') return { text: usageMessage(text.s, e.args) }
     if (action.kind === 'status') {
-      return { text: statusMessage(text.s, config.mode, formatStatus(savings, config.mode, '?', total)) }
+      return { text: statusMessage(text.s, config.mode, formatStatus(savings, config.mode, view(total))) }
     }
     try {
       const { deny } = await $.config.set({ key: 'jev-orchestrator.mode', value: action.mode })
@@ -62,7 +64,7 @@ export const register: Register = (on, options) => {
       return { text: deniedMessage(text.s, String(error)) }
     }
     // The reload does not rerun session.start: the line is refreshed here.
-    $.ui.status(formatStatus(savings, action.mode, '?', total))
+    $.ui.status(formatStatus(savings, action.mode, view(total)))
     return { text: changedMessage(text.s, config.mode, action.mode) }
   })
 

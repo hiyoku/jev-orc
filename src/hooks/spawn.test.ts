@@ -1,9 +1,15 @@
 import type { AgentSpawnInput, On } from 'claude-code'
-import { expect, mock, test, type Engine } from 'claude-code/testing'
+import { expect, mock, test as baseTest, type Engine } from 'claude-code/testing'
 import { FALLBACK_PROFILE } from '../agents/profiles'
 import { LOG_PATH } from '../log'
 import { MAX_AGENTS, PARALLELISM } from '../config'
 import { isOwnSpawn, MAX_TASK_CHARS, TOTAL_KEY } from './spawn'
+
+// The world's status line is plain, so the strings below stay as they were; a test's own options win.
+const test: typeof baseTest = ((name: string, a: any, b?: any) =>
+  typeof a === 'function'
+    ? baseTest(name, { options: { statusStyle: 'plain' } }, a)
+    : baseTest(name, { ...a, options: { statusStyle: 'plain', ...a.options } }, b)) as never
 
 const KEY = 'sk-test'
 const HOME = '/home/u'
@@ -424,6 +430,24 @@ test('a routed agent turn adds its usage, priced at its model against the parent
   await $.turn.complete({ ...done, agentId: 'a-s1', usage: { ...usage, model: 'claude-haiku-5-5' } })
   // haiku: 40k*0.1 + 2k*0.5 = $0.005 for the agent; the parent (haiku) costs the same
   expect(w.statuses.at(-1)).toBe('jev ON · haiku·low·t-read · 42k tok $0.005 · vs haiku/? ~$0.005 (0%) · total $0.005 (0%)')
+})
+
+test('statusStyle nerd: the last status carries the icons', { options: { statusStyle: 'nerd' } }, async ($, on) => {
+  const w = await world($, on)
+  await callAgent($, agent('n1'))
+  await $.turn.complete({ ...done, agentId: 'a-n1', usage: { ...usage, model: 'claude-haiku-5-5' } })
+  expect(w.statuses.at(-1)).toBe(
+    '\uf011 jev ON │ \uf0e7 haiku·low·t-read │ \uf1c0 42k tok │ \uf0d6 $0.005 │ \uf0ec vs haiku/? ~$0.005 (0%) │ \uf1da total $0.005 (0%)',
+  )
+})
+
+test('compareModel fable: priced and named as fable', { options: { compareModel: 'fable' } }, async ($, on) => {
+  const w = await world($, on)
+  await callAgent($, agent('f1'))
+  await $.turn.complete({ ...done, agentId: 'a-f1', usage: { ...usage, model: 'claude-haiku-5-5' } })
+  const last = w.statuses.at(-1)!
+  expect(last).toContain(' · vs fable ~$')
+  expect(last).not.toContain('vs fable/')
 })
 
 test('the savings survive a module reload, kept in $.state', async ($, on) => {
