@@ -57,3 +57,16 @@ test('jevEndpoint: https only; OpenRouter works, plain http falls back with a wa
 test('the JEV timeout leaves the hook a second of its budget', () => {
   expect(JEV_TIMEOUT_MS).toBeLessThanOrEqual(HOOK_BUDGET_MS - 1000)
 })
+
+test('agentScope defaults to builtin, accepts all, and falls back with a warning', () => {
+  expect(loadConfig({}).config.agentScope).toBe('builtin')
+  expect(loadConfig({ agentScope: 'all' }).config.agentScope).toBe('all')
+  const { config, warnings } = loadConfig({ agentScope: 'plugins' })
+  expect(config.agentScope).toBe('builtin')
+  expect(warnings.map((w) => formatWarning(STRINGS.en, w))).toEqual(['JEV: agentScope=plugins invalid: using builtin'])
+})
+
+test('agentHints is read as name=text pairs, empty by default', () => {
+  expect(loadConfig({}).config.agentHints.size).toBe(0)
+  expect(loadConfig({ agentHints: 'go-reviewer=reviews Go|Plan=plans' }).config.agentHints.get('go-reviewer')).toBe('reviews Go')
+})
