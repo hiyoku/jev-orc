@@ -33,4 +33,4 @@ export const questions = {
     type: 'noul',
     instructions: 'Does completing `tarefa` require interacting with a running web application in a browser (navigating, clicking, taking screenshots, checking the UI)?',
   },
-}
+} as const satisfies Record<string, { type: 'score' | 'noul'; instructions: string; criteria?: readonly string[] }>
