@@ -1,9 +1,20 @@
 # JEV Orchestrator
 
-🌐 English · [Português (Brasil)](README.pt-BR.md)
+English · [Português (Brasil)](README.pt-BR.md)
 
-A Claude Code 2.1.294 MOD (plugin) that routes every `Agent` spawn through JEV (TypeSafe). JEV
-decides the model (haiku, sonnet, opus), the effort, and the tool profile of each subagent.
+Hi! (^_^)/ This is a Claude Code MOD (plugin) that sends every `Agent` spawn through JEV (TypeSafe), so
+JEV can pick the model (haiku, sonnet, opus), the effort, and the tool profile of each subagent for you.
+
+## Installation
+
+Getting started takes two commands. In a Claude Code session:
+
+```
+/plugin marketplace add hiyoku/jev-orc
+/plugin install jev-orchestrator@jev-orc
+```
+
+The second command opens the plugin details, so just pick the scope you like (user, project, or local). Then add your JEV key (next section) and you're set! (^o^)b
 
 ## Flow
 
@@ -22,17 +33,6 @@ flowchart LR
 - `agent.spawn`, correlated by `tool_use_id`, applies the model and the tool profile.
 - Fail-open: the MOD never denies a spawn. If JEV fails (missing key, timeout, network, `http_*`),
   the spawn proceeds on sonnet · medium (capped by `maxModel`/`maxEffort`) and the reason goes to the log.
-
-## Installation
-
-Marketplace only. In a Claude Code session:
-
-```
-/plugin marketplace add hiyoku/jev-orc
-/plugin install jev-orchestrator@jev-orc
-```
-
-The second command opens the plugin details; choose the scope (user, project, or local).
 
 ## JEV key
 
