@@ -5,7 +5,7 @@ import { HOOK_BUDGET_MS, JEV_TIMEOUT_MS, loadConfig } from './config'
 test('defaults', () => {
   const { config, warnings } = loadConfig({})
   expect(warnings).toEqual([])
-  expect(config).toMatchObject({ mode: 'auto', maxModel: 'opus', maxEffort: 'xhigh', multiModel: false, mainEffort: false, logLevel: 'info' })
+  expect(config).toMatchObject({ mode: 'auto', maxModel: 'opus', maxEffort: 'xhigh', multiModel: false, mainEffort: false, logLevel: 'info', compareModel: 'auto', statusStyle: 'nerd' })
   expect(config.efforts).toEqual(['low', 'medium', 'high', 'xhigh'])
   expect(config.fallback).toEqual({ model: 'sonnet', effort: 'medium', agent: 'general-purpose' })
 })
@@ -25,6 +25,20 @@ test('an invalid value falls back to the default with a warning', () => {
   expect(config.mode).toBe('auto')
   expect(config.maxModel).toBe('opus')
   expect(warnings.map((w) => formatWarning(STRINGS.en, w))).toEqual(['JEV: maxModel=gpt invalid: using opus', 'JEV: mode=turbo invalid: using auto'])
+})
+
+test('compareModel and statusStyle accept every valid value', () => {
+  for (const compareModel of ['auto', 'haiku', 'sonnet', 'opus', 'fable']) expect(loadConfig({ compareModel }).config.compareModel).toBe(compareModel)
+  for (const statusStyle of ['nerd', 'plain']) expect(loadConfig({ statusStyle }).config.statusStyle).toBe(statusStyle)
+})
+
+test('an invalid compareModel or statusStyle falls back with a warning that hides the key', () => {
+  const { config, warnings } = loadConfig({ compareModel: 'gpt', statusStyle: 'gpt', typesafeApiKey: 'sk-secret' })
+  expect(config.compareModel).toBe('auto')
+  expect(config.statusStyle).toBe('nerd')
+  const texts = warnings.map((w) => formatWarning(STRINGS.en, w))
+  expect(texts).toEqual(['JEV: compareModel=gpt invalid: using auto', 'JEV: statusStyle=gpt invalid: using nerd'])
+  expect(JSON.stringify(warnings)).not.toContain('sk-secret')
 })
 
 test('a blank key is no key', () => {
