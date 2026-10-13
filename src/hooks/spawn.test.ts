@@ -598,3 +598,25 @@ test('agentHints wins over the host\'s listing line', { options: { agentHints: '
   await callAgent($, agent('h2', { subagent_type: 'Plan' }))
   expect(w.bodies[0].state.contexto).toBe('Plan (plans, never edits): read file')
 })
+
+test('a routed Plan keeps its type and gets the model and the effort', async ($, on) => {
+  const w = await world($, on)
+  await $.agent.offer({ agent: 'Plan', description: 'Software architect agent', source: 'built-in', provider: ENGINE })
+  await callAgent($, agent('k1', { subagent_type: 'Plan' }))
+  expect(w.tools[0].effort).toBe('low')
+  expect(w.spawns[0].subagentType).toBe('Plan')
+  expect(w.spawns[0].model).toBe('haiku')
+})
+
+test('scope all: a .claude/agents agent keeps its type, also on the fallback', { options: { agentScope: 'all' } }, async ($, on) => {
+  const w = await world($, on, { env: {} })
+  await callAgent($, agent('k2', { subagent_type: 'go-code-reviewer' }))
+  expect(w.spawns[0].subagentType).toBe('go-code-reviewer')
+  expect(w.spawns[0].model).toBe('sonnet')
+})
+
+test('claude is generic: it still trades its type for a tool profile', async ($, on) => {
+  const w = await world($, on)
+  await callAgent($, agent('k3', { subagent_type: 'claude' }))
+  expect(w.spawns[0].subagentType).toBe('jev-orchestrator:t-read')
+})
