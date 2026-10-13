@@ -84,6 +84,11 @@ seus próprios prompts (o agente principal) quando `mode` não é `off`, mesmo c
 
 ## Status line
 
+Por padrão (`statusStyle: nerd`) cada parte ganha um ícone Nerd Font e as partes são separadas por
+`│`: ligado, rota, tokens, custo, comparação, total e effort. Exige uma Nerd Font no terminal; sem ela
+os ícones aparecem como quadrados. `statusStyle: plain` é texto puro, sem ícones, e é o que os
+exemplos abaixo mostram:
+
 ```text
 jev ON · haiku·low·t-read · 42k tok $0.08 · vs opus/high ~$0.31 (-74%) — high
 jev OFF — high
@@ -98,16 +103,20 @@ jev ON · prompt·medium — medium
 O resto aparece assim que o primeiro subagente for roteado. Ainda não apareceu? Dispare um `Agent` e veja crescer (^_^)
 
 - `haiku·low·t-read`: último roteamento (modelo, effort, perfil); em falha, `fallback (<motivo>)`.
-- `42k tok $0.08`: tokens e custo real dos agents roteados na sessão.
-- `vs opus/high`: modelo e effort do usuário. O effort fica `?` até o MOD ver um turno do loop principal.
-- `~$0.31 (-74%)`: **estimativa**. O contrafactual são os mesmos tokens no modelo do usuário; não
+- `42k tok $0.08`: tokens e custo real dos agents roteados na sessão (no `nerd`, tokens e custo são
+  dois segmentos).
+- `vs opus/high`: o modelo de comparação e o effort. Por padrão (`compareModel: auto`) é o modelo do
+  usuário; o effort fica `?` até o MOD ver um turno do loop principal. Com um `compareModel` fixo
+  (`haiku`, `sonnet`, `opus`, `fable`) o rótulo mostra só o nome, ex. `vs fable`. Muda só o preço de
+  comparação da status line, não o roteamento.
+- `~$0.31 (-74%)`: **estimativa**. O contrafactual são os mesmos tokens no modelo de comparação (padrão: o modelo do usuário); não
   modela quanto o effort muda a contagem de tokens. `+x%` indica que o roteado saiu mais caro.
   Estimativa abaixo de US$ 0,0005 aparece como `<$0.001`.
-- `— high`: effort com que rodou a última requisição do loop principal (após o `mainEffort`, se
+- `— high` (no `nerd`, o último segmento): effort com que rodou a última requisição do loop principal (após o `mainEffort`, se
   ligado); subagentes não o alteram. Oculto até o MOD ver um turno do loop principal.
 - `logLevel` não afeta a status line.
 
-Os preços são os de tabela em `src/config.ts` (US$/MTok).
+Os preços são os de tabela em `src/config.ts` (US$/MTok), incluindo o Fable.
 
 As mensagens do plugin (toasts, respostas do `/jev-orc` e palavras da status line) seguem o idioma do Claude Code e caem para o inglês; a opção `language` (`auto`, `en`, `pt-BR`) força um idioma.
 
