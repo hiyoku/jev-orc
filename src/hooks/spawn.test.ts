@@ -93,7 +93,7 @@ async function world($: Engine, on: On, opts: World = {}) {
   })
   on('turn.complete', (_, e) => ({ text: e.answer }))
   on('agent.spawn', async (_, e) => {
-    const offered = await $.agent.offer({ agent: e.subagentType, description: '', source: 'plugin', provider: e.provider })
+    const offered = await $.agent.offer({ agent: e.subagentType, description: '', source: e.provider.plugin === 'engine' ? 'built-in' : 'plugin', provider: e.provider })
     if (!offered.isOffered) throw new Error(`names no agent this call can dispatch: ${e.subagentType}`)
     spawns.push(e)
     return { model: e.model ?? 'inherit', agentId: `a-${e.tool_use_id}` }
@@ -237,7 +237,7 @@ test('a named subagent that is not a teammate is routed', async ($, on) => {
   expect(w.spawns[0].subagentType).toBe('jev-orchestrator:t-read')
 })
 
-test('a type outside agentsIntercept is preserved', async ($, on) => {
+test('a type outside the scope is preserved', async ($, on) => {
   const w = await world($, on)
   await callAgent($, agent('go', { subagent_type: 'go-code-reviewer' }))
   expect(w.tools[0].effort).toBeUndefined()
@@ -552,4 +552,80 @@ test('mode=off leaves the main prompt\'s effort untouched', { options: { maxEffo
   await $.turn.start({ text: 'commit this', turnId: 'm5' })
   await s.step($, 'm5', 'claude-sonnet-5-5')
   expect(s.efforts).toEqual(['high'])
+})
+
+const ENGINE = { plugin: 'engine', tier: 'core' } as const
+const OTHER = { plugin: 'feature-dev', tier: 'user' } as const
+
+test('builtin scope routes Claude Code\'s own agents and leaves a plugin\'s alone', async ($, on) => {
+  const w = await world($, on)
+  await $.agent.offer({ agent: 'Plan', description: 'Software architect agent', source: 'built-in', provider: ENGINE })
+  await $.agent.offer({ agent: 'feature-dev:code-reviewer', description: 'Reviews code', source: 'plugin', provider: OTHER })
+  await callAgent($, agent('p1', { subagent_type: 'Plan' }))
+  await callAgent($, agent('p2', { subagent_type: 'feature-dev:code-reviewer' }))
+  expect(w.bodies).toHaveLength(1)
+  expect(w.tools[0].effort).toBe('low')
+  expect(w.tools[1].effort).toBeUndefined()
+})
+
+test('builtin scope leaves a .claude/agents agent alone even under a built-in\'s name', async ($, on) => {
+  const w = await world($, on)
+  await $.agent.offer({ agent: 'Explore', description: 'my own explorer', source: 'projectSettings', provider: ENGINE })
+  await callAgent($, agent('x1', { subagent_type: 'Explore' }))
+  expect(w.bodies).toHaveLength(0)
+  expect(w.tools[0].effort).toBeUndefined()
+})
+
+test('scope all routes a .claude/agents agent and a plugin agent too', { options: { agentScope: 'all' } }, async ($, on) => {
+  const w = await world($, on)
+  await callAgent($, agent('c1', { subagent_type: 'go-code-reviewer' }))
+  await callAgent($, agent('c2', { subagent_type: 'feature-dev:code-reviewer' }))
+  expect(w.bodies).toHaveLength(2)
+  expect(w.tools.map((t) => t.effort)).toEqual(['low', 'low'])
+})
+
+test('JEV reads the host\'s listing line beside the agent name, cut to 120 characters', async ($, on) => {
+  const w = await world($, on)
+  const listing = `Software architect. ${'x'.repeat(200)}`
+  await $.agent.offer({ agent: 'Plan', description: listing, source: 'built-in', provider: ENGINE })
+  await callAgent($, agent('h1', { subagent_type: 'Plan' }))
+  expect(w.bodies[0].state.contexto).toBe(`Plan (${listing.slice(0, 120)}): read file`)
+})
+
+test('agentHints wins over the host\'s listing line', { options: { agentHints: 'Plan=plans, never edits' } }, async ($, on) => {
+  const w = await world($, on)
+  await $.agent.offer({ agent: 'Plan', description: 'Software architect agent', source: 'built-in', provider: ENGINE })
+  await callAgent($, agent('h2', { subagent_type: 'Plan' }))
+  expect(w.bodies[0].state.contexto).toBe('Plan (plans, never edits): read file')
+})
+
+test('a routed Plan keeps its type and gets the model and the effort', async ($, on) => {
+  const w = await world($, on)
+  await $.agent.offer({ agent: 'Plan', description: 'Software architect agent', source: 'built-in', provider: ENGINE })
+  await callAgent($, agent('k1', { subagent_type: 'Plan' }))
+  expect(w.tools[0].effort).toBe('low')
+  expect(w.spawns[0].subagentType).toBe('Plan')
+  expect(w.spawns[0].model).toBe('haiku')
+})
+
+test('scope all: a .claude/agents agent keeps its type, also on the fallback', { options: { agentScope: 'all' } }, async ($, on) => {
+  const w = await world($, on, { env: {} })
+  await callAgent($, agent('k2', { subagent_type: 'go-code-reviewer' }))
+  expect(w.spawns[0].subagentType).toBe('go-code-reviewer')
+  expect(w.spawns[0].model).toBe('sonnet')
+})
+
+test('claude is generic: it still trades its type for a tool profile', async ($, on) => {
+  const w = await world($, on)
+  await callAgent($, agent('k3', { subagent_type: 'claude' }))
+  expect(w.spawns[0].subagentType).toBe('jev-orchestrator:t-read')
+})
+
+test('scope all: a .claude/agents agent named like a generic one keeps its type', { options: { agentScope: 'all' } }, async ($, on) => {
+  const w = await world($, on)
+  await $.agent.offer({ agent: 'Explore', description: 'my own explorer', source: 'projectSettings', provider: ENGINE })
+  await callAgent($, agent('s1', { subagent_type: 'Explore' }))
+  expect(w.tools[0].effort).toBe('low')
+  expect(w.spawns[0].subagentType).toBe('Explore')
+  expect(w.spawns[0].model).toBe('haiku')
 })

@@ -1,6 +1,7 @@
 import { update, type AgentSpawnResult, type EngineInterface, type On } from 'claude-code'
 import { FALLBACK_PROFILE, PROFILE_MATCHER, profileFor } from '../agents/profiles'
-import { AGENTS_INTERCEPT, EFFORTS, HOOK_BUDGET_MS, JEV_TIMEOUT_MS, MAX_AGENTS, PARALLELISM, PRICES, type Config, type Effort, type LogLevel, type Model } from '../config'
+import { hintFor, intercepts, swapsProfile, type Offered } from '../agents/scope'
+import { EFFORTS, HOOK_BUDGET_MS, JEV_TIMEOUT_MS, MAX_AGENTS, PARALLELISM, PRICES, type Config, type Effort, type LogLevel, type Model } from '../config'
 import { decide, desiredEffort, projectEffort } from '../domain/policy'
 import type { Strings } from '../i18n'
 import type { JevAnswers } from '../jev/answers'
@@ -88,6 +89,8 @@ type Verification = { tool_use_id: string; prompt: string; verifier: Model; desc
 // `registered` holds the profiles whose registration succeeded; any other gets the model only.
 // `text` is read at each use: the language is only known at session.start.
 export function routeAgentSpawns(on: On, config: Config, registered: ReadonlySet<string>, text: { s: Strings }) {
+  // What agent.offer said of each type (source and listing line). The host offers agents to the model before it can name one in an Agent call.
+  const offered = new Map<string, Offered>()
   const decisions = new Map<string, Routed>()
   // Profiles with an Agent call in flight. agent.offer also gates a rewritten subagentType, so a
   // profile is offered only during its own call and stays hidden from the model's listing.
@@ -164,6 +167,12 @@ export function routeAgentSpawns(on: On, config: Config, registered: ReadonlySet
 
   on('agent.offer', { agent: PROFILE_MATCHER }, (_$, e) => ({ isOffered: (dispatching.get(e.agent) ?? 0) > 0 }))
 
+  // Observes only: the offer goes on unchanged.
+  on('agent.offer', (_$, e, next) => {
+    offered.set(e.agent, { source: e.source, description: e.description })
+    return next(e)
+  })
+
   const fallback = (reason: string): Routed => ({
     model: config.fallback.model,
     effort: config.fallback.effort,
@@ -180,7 +189,7 @@ export function routeAgentSpawns(on: On, config: Config, registered: ReadonlySet
       type === 'fork' ||
       // ponytail: the tool marks it deprecated and ignored; a teammate shows only at agent.spawn (isTeammate); revisit if the Agent tool exposes a non-deprecated teammate flag
       e.team_name !== undefined ||
-      !AGENTS_INTERCEPT.includes(type) ||
+      !intercepts(config.agentScope, type, offered.get(type)) ||
       isOwnSpawn(next.origin.plugin, $.plugin.name, type) ||
       routedIds.has(e.tool_use_id)
     if (untouched) return next(e)
@@ -195,7 +204,8 @@ export function routeAgentSpawns(on: On, config: Config, registered: ReadonlySet
       if (active.size + reserved.size >= MAX_AGENTS) throw new Error('maxAgents')
       reserved.add(e.tool_use_id)
       if (!(await limiter.acquire((ms, signal) => $.clock.sleep(ms, { signal })))) throw new Error('parallelism')
-      const task = { tarefa: e.prompt.slice(0, MAX_TASK_CHARS), contexto: `${type}: ${e.description}` }
+      const hint = hintFor(type, offered.get(type), config.agentHints)
+      const task = { tarefa: e.prompt.slice(0, MAX_TASK_CHARS), contexto: `${type}${hint ? ` (${hint})` : ''}: ${e.description}` }
       asked = task
       try {
         answers = await askJev(jevIo($), task, config)
@@ -240,7 +250,8 @@ export function routeAgentSpawns(on: On, config: Config, registered: ReadonlySet
     if (!routed || isOwnSpawn(next.origin.plugin, $.plugin.name, e.subagentType) || e.fork || e.isTeammate || e.workflow) return next(e)
 
     let spawned: AgentSpawnResult | undefined
-    if (registered.has(routed.profile)) {
+    // Only a generic agent trades its type for a tool profile; any other keeps its own prompt and tools and gets the model alone.
+    if (swapsProfile(e.subagentType, offered.get(e.subagentType)) && registered.has(routed.profile)) {
       try {
         spawned = await next({ ...e, model: routed.model, subagentType: routed.profile })
       } catch {

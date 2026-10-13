@@ -20,7 +20,7 @@ O segundo comando abre os detalhes do plugin, é só escolher o escopo que prefe
 
 ### Como funciona
 
-Você não chama o JEV diretamente. Com o plugin ligado, todo spawn de `Agent` (`general-purpose` e `Explore`) passa antes pelo JEV, que lê o texto da tarefa e escolhe o modelo, o effort e o perfil de tools daquele subagente. Se o JEV estiver indisponível, o spawn roda mesmo assim (sonnet · medium). A seção [Fluxo](#fluxo) tem o diagrama, e o `/jev-orc` liga e desliga.
+Você não chama o JEV diretamente. Com o plugin ligado, todo spawn de `Agent` dos agentes no escopo (`agentScope`: por padrão os agentes do próprio Claude Code, ou todos) passa antes pelo JEV, que lê o texto da tarefa e escolhe o modelo, o effort e o perfil de tools daquele subagente. Se o JEV estiver indisponível, o spawn roda mesmo assim (sonnet · medium). A seção [Fluxo](#fluxo) tem o diagrama, e o `/jev-orc` liga e desliga.
 
 O plugin traz também duas skills que aproveitam isso ao máximo: `plan` corta um pedido em tarefas pequenas e `run` dispara um subagente por tarefa. Tarefas pequenas e mecânicas são as que o JEV manda para o modelo mais barato (haiku), então é no plano que está a maior parte da economia.
 
@@ -94,7 +94,7 @@ toda chamada.
 
 | `mode` | Comportamento |
 |---|---|
-| `auto` (padrão) | o JEV decide cada spawn `general-purpose` e `Explore` |
+| `auto` (padrão) | o JEV decide cada spawn dos agentes no escopo (`agentScope`)|
 | `off` | desligado; a status line mostra `jev OFF` |
 | `explicit` | só roteia spawns cuja `description` começa com `[jev]` (o marcador é removido) |
 
@@ -211,7 +211,7 @@ A cada spawn de subagente roteado (e a cada prompt, com `mainEffort` ligado) o t
 cortado em 4000 caracteres, é enviado ao endpoint do JEV (`jevEndpoint`: TypeSafe ou OpenRouter).
 Nada mais sai da sua máquina. A chave fica no armazenamento seguro do sistema. O log local de
 decisões guarda a tarefa só com `logLevel=debug` (cortada em 200 caracteres); `logLevel=off` não
-escreve nada.
+escreve nada. O nome do agente e uma descrição curta dele (o seu `agentHints`, ou a que o Claude Code dá ao agente, cortada em 120 caracteres) vão junto com a tarefa.
 
 ## Contribuindo
 
@@ -221,6 +221,7 @@ Qualquer melhoria é bem-vinda: correção de bug, doc mais clara, uma pergunta 
 2. Faça um fork, crie uma branch a partir da `main` e faça a sua mudança. PRs pequenos e focados são mais fáceis de revisar.
 3. Rode `claude plugin test .` e `claude plugin validate .`; os dois devem passar.
 4. Abra um pull request para a `main` dizendo o que mudou e por quê. As mensagens de commit seguem o estilo do histórico (`feat(escopo): resumo`).
+5. Uma PR mergeada lança a versão do `.claude-plugin/plugin.json`: aumente o `version` lá se quiser uma nova tag e uma release no GitHub. Sem aumento, nada é lançado.
 
 ## Mais
 

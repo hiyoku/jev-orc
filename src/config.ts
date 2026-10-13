@@ -1,5 +1,6 @@
 import type { HookBudget, PluginOptions } from 'claude-code'
 import { warning, type Warning } from './i18n'
+import { SCOPES, parseHints, type Scope } from './agents/scope'
 
 export const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'] as const
 export const MODELS = ['haiku', 'sonnet', 'opus'] as const
@@ -40,6 +41,10 @@ export type Config = {
   compareModel: CompareModel
   // nerd: Nerd Font icons; plain: text only.
   statusStyle: StatusStyle
+  // Which agents the routing touches: builtin (Claude Code's own) or all (plus .claude/agents and plugins').
+  agentScope: Scope
+  // Per-agent text JEV reads beside the name; the host's listing line when none.
+  agentHints: Map<string, string>
 }
 
 // US$ per MTok.
@@ -48,7 +53,6 @@ export type Price = { input: number; output: number; cacheRead: number; cacheWri
 export type LoadedConfig = { config: Config; warnings: Warning[] }
 
 // Fixed internals: once options, now the values almost nobody changed.
-export const AGENTS_INTERCEPT = ['general-purpose', 'Explore']
 export const MAX_AGENTS = 8
 export const PARALLELISM = 4
 export const JEV_TIMEOUT_MS = 8000
@@ -74,6 +78,7 @@ const DEFAULTS = {
   logLevel: 'info',
   compareModel: 'auto',
   statusStyle: 'nerd',
+  agentScope: 'builtin',
 } as const
 
 // The lower of two values on an ordered scale.
@@ -110,6 +115,8 @@ export function loadConfig(options: PluginOptions): LoadedConfig {
     logLevel: oneOf('logLevel', LOG_LEVELS, DEFAULTS.logLevel),
     compareModel: oneOf('compareModel', COMPARE_MODELS, DEFAULTS.compareModel),
     statusStyle: oneOf('statusStyle', STATUS_STYLES, DEFAULTS.statusStyle),
+    agentScope: oneOf('agentScope', SCOPES, DEFAULTS.agentScope),
+    agentHints: parseHints(options.agentHints),
   }
   return { config, warnings }
 }
