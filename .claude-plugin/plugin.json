@@ -1,6 +1,7 @@
 {
   "name": "jev-orchestrator",
   "version": "0.2.0",
+  "license": "MIT",
   "description": "Routes Agent spawns through JEV (TypeSafe)",
   "author": { "name": "Hideki Inoue" },
   "repository": "https://github.com/hiyoku/jev-orc",
