@@ -20,7 +20,7 @@ The second command opens the plugin details, so just pick the scope you like (us
 
 ### How it works
 
-You do not call JEV yourself. Once the plugin is on, every `Agent` spawn (`general-purpose` and `Explore`) goes through JEV first, which reads the task text and picks the model, the effort and the tool profile for that subagent. If JEV is unavailable, the spawn still runs (sonnet · medium). The [Flow](#flow) section has the diagram, and `/jev-orc` turns it on or off.
+You do not call JEV yourself. Once the plugin is on, every `Agent` spawn of the agents in scope (`agentScope`: Claude Code's own agents by default, or all of them) goes through JEV first, which reads the task text and picks the model, the effort and the tool profile for that subagent. If JEV is unavailable, the spawn still runs (sonnet · medium). The [Flow](#flow) section has the diagram, and `/jev-orc` turns it on or off.
 
 The plugin also ships two skills that make the most of this: `plan` cuts a request into small tasks, and `run` spawns one subagent per task. Small, mechanical tasks are what JEV sends to the cheapest model (haiku), so the plan is where most of the savings come from.
 
@@ -93,7 +93,7 @@ The endpoint must be https, since the key goes with every call.
 
 | `mode` | Behavior |
 |---|---|
-| `auto` (default) | JEV decides every `general-purpose` and `Explore` spawn |
+| `auto` (default) | JEV decides every spawn of the agents in scope (`agentScope`) |
 | `off` | disabled; the status line shows `jev OFF` |
 | `explicit` | only routes spawns whose `description` starts with `[jev]` (the marker is removed) |
 
@@ -208,7 +208,7 @@ prompt keeps your effort.
 For each routed subagent spawn (and each prompt, with `mainEffort` on) the task text, cut to 4000
 characters, is sent to the JEV endpoint (`jevEndpoint`: TypeSafe, or OpenRouter). Nothing else
 leaves your machine. The key is kept in the system secure storage. The local decision log holds
-the task only with `logLevel=debug` (cut to 200 characters); `logLevel=off` writes nothing.
+the task only with `logLevel=debug` (cut to 200 characters); `logLevel=off` writes nothing. The agent's name and a short description of it (your `agentHints`, else the one Claude Code gives it, cut to 120 characters) go along with the task.
 
 ## Contributing
 
@@ -218,6 +218,7 @@ Any improvement is welcome: a bug fix, a clearer doc, a better question for JEV,
 2. Fork the repo, create a branch from `main`, and make your change. Small, focused PRs are easier to review.
 3. Run `claude plugin test .` and `claude plugin validate .`; both should pass.
 4. Open a pull request against `main` and say what changed and why. Commit messages follow the style of the history (`feat(scope): summary`).
+5. A merged PR releases the version in `.claude-plugin/plugin.json`: bump `version` there if you want a new tag and GitHub release. Without a bump nothing is released.
 
 ## More
 
