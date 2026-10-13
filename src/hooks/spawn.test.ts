@@ -583,3 +583,18 @@ test('scope all routes a .claude/agents agent and a plugin agent too', { options
   expect(w.bodies).toHaveLength(2)
   expect(w.tools.map((t) => t.effort)).toEqual(['low', 'low'])
 })
+
+test('JEV reads the host\'s listing line beside the agent name, cut to 120 characters', async ($, on) => {
+  const w = await world($, on)
+  const listing = `Software architect. ${'x'.repeat(200)}`
+  await $.agent.offer({ agent: 'Plan', description: listing, source: 'built-in', provider: ENGINE })
+  await callAgent($, agent('h1', { subagent_type: 'Plan' }))
+  expect(w.bodies[0].state.contexto).toBe(`Plan (${listing.slice(0, 120)}): read file`)
+})
+
+test('agentHints wins over the host\'s listing line', { options: { agentHints: 'Plan=plans, never edits' } }, async ($, on) => {
+  const w = await world($, on)
+  await $.agent.offer({ agent: 'Plan', description: 'Software architect agent', source: 'built-in', provider: ENGINE })
+  await callAgent($, agent('h2', { subagent_type: 'Plan' }))
+  expect(w.bodies[0].state.contexto).toBe('Plan (plans, never edits): read file')
+})
