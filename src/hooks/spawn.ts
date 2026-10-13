@@ -40,7 +40,7 @@ async function track($: EngineInterface, config: Config, efforts: Efforts, chang
       total = change(((await $.store.get(TOTAL_KEY)) as Savings | undefined) ?? EMPTY_SAVINGS)
       await $.store.set(TOTAL_KEY, total)
     } catch {} // no store: the session's line alone
-    $.ui.status(formatStatus(savings, config.mode, efforts.user, total, efforts.prompt))
+    $.ui.status(formatStatus(savings, config.mode, { userEffort: efforts.user, total, promptEffort: efforts.prompt, style: config.statusStyle, compare: config.compareModel }))
   } catch {}
 }
 
@@ -264,7 +264,7 @@ export function routeAgentSpawns(on: On, config: Config, registered: ReadonlySet
     const cost = costed.get(e.agentId)
     costed.delete(e.agentId)
     const usage = e.usage
-    if (cost && usage) await track($, config, efforts, (savings) => addAgent(savings, usage, cost.routed, cost.parentModel, PRICES, cost.isVerifier))
+    if (cost && usage) await track($, config, efforts, (savings) => addAgent(savings, usage, cost.routed, cost.parentModel, PRICES, config.compareModel, cost.isVerifier))
     const pending = pendingVerify.get(e.agentId)
     pendingVerify.delete(e.agentId)
     if (!pending || e.reason !== 'answer') return next(e)

@@ -4,6 +4,9 @@ import { warning, type Warning } from './i18n'
 export const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'] as const
 export const MODELS = ['haiku', 'sonnet', 'opus'] as const
 export const PROFILES = ['explore', 'general'] as const
+export const PRICED_MODELS = [...MODELS, 'fable'] as const
+export const COMPARE_MODELS = ['auto', ...PRICED_MODELS] as const
+export const STATUS_STYLES = ['nerd', 'plain'] as const
 const MODES = ['auto', 'off', 'explicit'] as const
 const LOG_LEVELS = ['off', 'info', 'debug'] as const
 
@@ -12,6 +15,9 @@ export const HOOK_BUDGET_MS: HookBudget['ms'] = 10_000
 export type Effort = (typeof EFFORTS)[number]
 export type Model = (typeof MODELS)[number]
 export type Profile = (typeof PROFILES)[number]
+export type PricedModel = (typeof PRICED_MODELS)[number]
+export type CompareModel = (typeof COMPARE_MODELS)[number]
+export type StatusStyle = (typeof STATUS_STYLES)[number]
 export type Mode = (typeof MODES)[number]
 export type LogLevel = (typeof LOG_LEVELS)[number]
 
@@ -30,6 +36,10 @@ export type Config = {
   // System One API: TypeSafe's, or OpenRouter's (https://openrouter.ai/api/v1/systemone) with an OpenRouter key.
   endpoint: string
   logLevel: LogLevel
+  // Model the status line prices the routed tokens against; auto: the session's own model.
+  compareModel: CompareModel
+  // nerd: Nerd Font icons; plain: text only.
+  statusStyle: StatusStyle
 }
 
 // US$ per MTok.
@@ -45,10 +55,12 @@ export const JEV_TIMEOUT_MS = 8000
 // ponytail: list prices; an option again if someone has negotiated prices
 // Anthropic's published prices for the current family (-5-5), US$ per MTok; cache write is the
 // 5-minute TTL (1.25x input) and haiku's cache read is the documented 0.1x of its input.
-export const PRICES: Record<Model, Price> = {
+// fable: claude-api skill (2026-10); its cacheWrite is derived (1.25x input), not listed there.
+export const PRICES: Record<PricedModel, Price> = {
   haiku: { input: 0.1, output: 0.5, cacheRead: 0.01, cacheWrite: 0.125 },
   sonnet: { input: 2, output: 10, cacheRead: 0.2, cacheWrite: 2.5 },
   opus: { input: 4, output: 20, cacheRead: 0.2, cacheWrite: 5 },
+  fable: { input: 10, output: 50, cacheRead: 0.25, cacheWrite: 12.5 },
 }
 const FALLBACK = { model: 'sonnet', effort: 'medium', agent: 'general-purpose' } as const
 
@@ -60,6 +72,8 @@ const DEFAULTS = {
   multiModel: false,
   mainEffort: false,
   logLevel: 'info',
+  compareModel: 'auto',
+  statusStyle: 'nerd',
 } as const
 
 // The lower of two values on an ordered scale.
@@ -94,6 +108,8 @@ export function loadConfig(options: PluginOptions): LoadedConfig {
     apiKey: (typeof key === 'string' && key.trim()) || undefined,
     endpoint: isHttps ? endpoint : DEFAULTS.endpoint,
     logLevel: oneOf('logLevel', LOG_LEVELS, DEFAULTS.logLevel),
+    compareModel: oneOf('compareModel', COMPARE_MODELS, DEFAULTS.compareModel),
+    statusStyle: oneOf('statusStyle', STATUS_STYLES, DEFAULTS.statusStyle),
   }
   return { config, warnings }
 }

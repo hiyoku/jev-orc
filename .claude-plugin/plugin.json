@@ -1,6 +1,6 @@
 {
   "name": "jev-orchestrator",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Routes Agent spawns through JEV (TypeSafe)",
   "author": { "name": "Hideki Inoue" },
   "repository": "https://github.com/hiyoku/jev-orc",
@@ -26,6 +26,20 @@
         "off",
         "explicit"
       ]
+    },
+    "compareModel": {
+      "type": "string",
+      "title": "Compare model",
+      "description": "Model the status line compares the routed cost against. auto: the model of your session.",
+      "default": "auto",
+      "options": ["auto", "haiku", "sonnet", "opus", "fable"]
+    },
+    "statusStyle": {
+      "type": "string",
+      "title": "Status line style",
+      "description": "nerd: Nerd Font icons (needs a Nerd Font in the terminal); plain: text only.",
+      "default": "nerd",
+      "options": ["nerd", "plain"]
     },
     "maxModel": {
       "type": "string",

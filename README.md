@@ -83,6 +83,11 @@ prompts (the main agent) when `mode` is not `off`, even with `mainEffort` off.
 
 ## Status line
 
+By default (`statusStyle: nerd`) each part gets a Nerd Font icon and the parts are split by `│`:
+power, route, tokens, cost, comparison, total, and effort. It needs a Nerd Font in the terminal;
+without one the icons show as squares. `statusStyle: plain` is plain text with no icons, and is what
+the examples below show:
+
 ```text
 jev ON · haiku·low·t-read · 42k tok $0.08 · vs opus/high ~$0.31 (-74%) — high
 jev OFF — high
@@ -97,16 +102,20 @@ jev ON · prompt·medium — medium
 The rest appears as soon as the first subagent is routed. Not seeing it yet? Spawn an `Agent` and watch it grow (^_^)
 
 - `haiku·low·t-read`: last routing (model, effort, profile); on failure, `fallback (<reason>)`.
-- `42k tok $0.08`: tokens and actual cost of the routed agents in the session.
-- `vs opus/high`: the user's model and effort. The effort stays `?` until the MOD sees a main-loop turn.
-- `~$0.31 (-74%)`: **estimate**. The counterfactual is the same tokens on the user's model; it does
+- `42k tok $0.08`: tokens and actual cost of the routed agents in the session (in `nerd`, tokens and
+  cost are two segments).
+- `vs opus/high`: the compare model and the effort. By default (`compareModel: auto`) it is the user's
+  model; the effort stays `?` until the MOD sees a main-loop turn. With a fixed `compareModel`
+  (`haiku`, `sonnet`, `opus`, `fable`) the label shows only the name, e.g. `vs fable`. It changes only
+  the status line's comparison price, not the routing.
+- `~$0.31 (-74%)`: **estimate**. The counterfactual is the same tokens on the compare model (default: the user's model); it does
   not model how much the effort changes the token count. `+x%` means the routed run cost more.
   An estimate below US$ 0.0005 shows as `<$0.001`.
-- `— high`: effort the main loop's last request ran with (after `mainEffort`, if on); subagents
+- `— high` (in `nerd`, the last segment): effort the main loop's last request ran with (after `mainEffort`, if on); subagents
   do not change it. Hidden until the MOD sees a main-loop turn.
 - `logLevel` does not affect the status line.
 
-Prices are the list prices in `src/config.ts` (US$/MTok).
+Prices are the list prices in `src/config.ts` (US$/MTok), Fable included.
 
 Plugin messages (toasts, `/jev-orc` replies, and status line words) follow the Claude Code language and fall back to English; the `language` option (`auto`, `en`, `pt-BR`) forces a language.
 

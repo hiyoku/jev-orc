@@ -48,7 +48,7 @@ async function host($: Engine, on: On, deny?: string, env: Record<string, string
   return { sets, statuses, commands }
 }
 
-test('/jev-orc: registra, alterna e atualiza a status line', async ($, on) => {
+test('/jev-orc: registra, alterna e atualiza a status line', { options: { statusStyle: 'plain' } }, async ($, on) => {
   const h = await host($, on)
   expect(h.commands).toEqual(['jev-orc'])
   const r = await run($, '')
