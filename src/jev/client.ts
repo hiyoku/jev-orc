@@ -26,7 +26,7 @@ function parse(text: string): JevAnswers {
     const ok = isObj(v) && (q.type === 'score' ? isNum(v.score) && isNum(v.confidence) : isNum(v.noul))
     if (!ok) throw new JevError('bad_payload')
   }
-  return a as unknown as JevAnswers
+  return a as JevAnswers
 }
 
 export async function askJev(

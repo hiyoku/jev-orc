@@ -47,6 +47,11 @@ test('web research never stays on haiku', () => {
   expect(d.toolGroups).toEqual(['read', 'web'])
 })
 
+test('runs_shell in the uncertainty band (0.3 to 0.5) still gets shell', () => {
+  expect(routed(decide(answers(0.1, 0.9, 0.1, { runs_shell: 0.35 }), cfg())).toolGroups).toEqual(['read', 'shell'])
+  expect(routed(decide(answers(0.1, 0.9, 0.1, { runs_shell: 0.25 }), cfg())).toolGroups).toEqual(['read'])
+})
+
 // --- maximums ---
 
 test('maxModel caps the tier', () => {

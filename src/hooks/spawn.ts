@@ -5,6 +5,7 @@ import { decide, desiredEffort, projectEffort } from '../domain/policy'
 import type { Strings } from '../i18n'
 import type { JevAnswers } from '../jev/answers'
 import { askJev, JevError, type JevErrorKind } from '../jev/client'
+import { createLimiter } from '../jev/limiter'
 import { jevNumbers, logDecision, type LogEntry, type LogIo } from '../log'
 import { addAgent, EMPTY_SAVINGS, formatStatus } from '../savings'
 import type { Savings } from '../../types/index'
@@ -109,33 +110,10 @@ export function routeAgentSpawns(on: On, config: Config, registered: ReadonlySet
   const efforts: Efforts = { user: '?', prompt: '?' }
   // mainEffort: JEV's effort for each main-loop turn, by turnId, until the turn completes.
   const mainEfforts = new Map<string, Effort>()
-  // Semaphore over the JEV calls in flight.
-  let jevInFlight = 0
-  const jevQueue: (() => void)[] = []
   // Waiting on the queue is the hook's own time (no $ call is in flight), and the JEV timeout is
   // a $.clock.sleep, paid from the budget too: the wait gets what is left of the budget after them.
   const maxQueueWaitMs = HOOK_BUDGET_MS - JEV_TIMEOUT_MS - QUEUE_MARGIN_MS
-
-  const acquireJev = async (sleep: (ms: number, signal: AbortSignal) => Promise<void>): Promise<boolean> => {
-    if (jevInFlight < PARALLELISM) return (jevInFlight++, true)
-    if (maxQueueWaitMs <= 0) return false
-    let grant!: () => void
-    const granted = new Promise<void>((resolve) => (grant = resolve))
-    jevQueue.push(grant)
-    const timer = new AbortController()
-    await Promise.race([granted, sleep(maxQueueWaitMs, timer.signal).catch(() => {})])
-    timer.abort()
-    const waiting = jevQueue.indexOf(grant)
-    if (waiting === -1) return true // granted, even if in the same tick as the timeout
-    jevQueue.splice(waiting, 1)
-    return false
-  }
-  // A released slot passes straight to the next in the queue.
-  const releaseJev = () => {
-    const nextInQueue = jevQueue.shift()
-    if (nextInQueue) nextInQueue()
-    else jevInFlight--
-  }
+  const limiter = createLimiter(PARALLELISM, maxQueueWaitMs)
 
   const markRouted = (id: string) => {
     routedIds.add(id)
@@ -216,13 +194,13 @@ export function routeAgentSpawns(on: On, config: Config, registered: ReadonlySet
     try {
       if (active.size + reserved.size >= MAX_AGENTS) throw new Error('maxAgents')
       reserved.add(e.tool_use_id)
-      if (!(await acquireJev((ms, signal) => $.clock.sleep(ms, { signal })))) throw new Error('parallelism')
+      if (!(await limiter.acquire((ms, signal) => $.clock.sleep(ms, { signal })))) throw new Error('parallelism')
       const task = { tarefa: e.prompt.slice(0, MAX_TASK_CHARS), contexto: `${type}: ${e.description}` }
       asked = task
       try {
         answers = await askJev(jevIo($), task, config)
       } finally {
-        releaseJev()
+        limiter.release()
       }
       const decision = decide(answers, config)
       routed = { model: decision.models[0], verifier: decision.models[1], effort: decision.effort, profile: profileFor(decision), reasons: decision.reasons }

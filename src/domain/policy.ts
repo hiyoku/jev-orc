@@ -15,8 +15,6 @@ const HAIKU_BELOW = 0.75
 const SONNET_BELOW = 2.25
 const LOW_CONFIDENCE = 0.4
 const WEB_RESEARCH_FLOOR = 0.5
-const GROUP_THRESHOLD = 0.5
-const EDIT_THRESHOLD = 0.3
 // ponytail: cortes não calibrados — a verifier only on opus-tier complexity with confidence below this; recalibrar pela distribuição de confidence nas decisões opus de decisions.jsonl (≥200 linhas)
 const VERIFY_CONFIDENCE_BELOW = 0.5
 // ponytail: cortes não calibrados — deliberation noul abaixo de cada limite dá o effort correspondente; acima do último, max; recalibrar pela distribuição de deliberation em decisions.jsonl (≥200 linhas)
@@ -26,6 +24,12 @@ const EFFORT_CUTS: readonly [number, Effort][] = [
   [0.6, 'high'],
   [0.8, 'xhigh'],
 ]
+
+// ponytail: cortes não calibrados; faltar uma tool custa um agent perdido, sobrar uma custa quase nada → shell/edit mais baixos; recalibrar com o replay (docs/dev/known-limits.md)
+const GROUP_THRESHOLDS = { edit: 0.3, shell: 0.3, web: 0.5, docs: 0.5, browser: 0.5 } as const satisfies Record<
+  Exclude<ToolGroup, 'read'>,
+  number
+>
 
 const GROUP_QUESTIONS = [
   ['edits_files', 'edit'],
@@ -59,8 +63,7 @@ export function decide(answers: JevAnswers, config: Config): Decision {
 
 function groupsOf(answers: JevAnswers): ToolGroup[] {
   const groups = GROUP_QUESTIONS.filter(([question, group]) => {
-    const { noul } = answers[question]
-    return noul >= GROUP_THRESHOLD || (group === 'edit' && noul >= EDIT_THRESHOLD)
+    return answers[question].noul >= GROUP_THRESHOLDS[group]
   }).map(([, group]) => group)
   return ['read', ...groups]
 }

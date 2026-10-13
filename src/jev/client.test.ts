@@ -1,6 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 import { loadConfig } from '../config'
 import { askJev, JevError } from './client'
+import { questions } from './questions'
 
 const config = loadConfig({}).config
 const task = { tarefa: 'rename x', contexto: 'general-purpose: rename' }
@@ -35,6 +36,10 @@ function setup(env: Record<string, string>, res: () => Promise<unknown> | unknow
   }
   return { run, calls, tick: () => sleeps.forEach((r) => r()) }
 }
+
+test('the fixture answers match the questions', () => {
+  expect(Object.keys(good.answers)).toEqual(Object.keys(questions))
+})
 
 test('success: posts body and bearer header, returns answers', async () => {
   const { run, calls } = setup({ TYPESAFE_API_KEY: KEY }, () => ({ status: 200, text: JSON.stringify(good) }))
