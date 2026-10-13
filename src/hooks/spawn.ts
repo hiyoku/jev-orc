@@ -1,6 +1,6 @@
 import { update, type AgentSpawnResult, type EngineInterface, type On } from 'claude-code'
 import { FALLBACK_PROFILE, PROFILE_MATCHER, profileFor } from '../agents/profiles'
-import { AGENTS_INTERCEPT, HOOK_BUDGET_MS, JEV_TIMEOUT_MS, MAX_AGENTS, PARALLELISM, PRICES, type Config, type Effort, type LogLevel, type Model } from '../config'
+import { AGENTS_INTERCEPT, EFFORTS, HOOK_BUDGET_MS, JEV_TIMEOUT_MS, MAX_AGENTS, PARALLELISM, PRICES, type Config, type Effort, type LogLevel, type Model } from '../config'
 import { decide, desiredEffort, projectEffort } from '../domain/policy'
 import type { Strings } from '../i18n'
 import type { JevAnswers } from '../jev/answers'
@@ -24,9 +24,12 @@ const SAVINGS = { plugin: 'jev-orchestrator', key: 'savings' } as const
 // The $.store key of every session's savings summed.
 export const TOTAL_KEY = 'totalSavings'
 
+// user: what the main loop's last request asked for (the counterfactual); prompt: what it ran with.
+type Efforts = { user: string; prompt: string }
+
 // The same change folds into the session's savings and into the total across sessions.
 // The status never reaches the routing: a failed state write leaves the old line.
-async function track($: EngineInterface, config: Config, userEffort: string, change: (savings: Savings) => Savings) {
+async function track($: EngineInterface, config: Config, efforts: Efforts, change: (savings: Savings) => Savings) {
   try {
     const savings = await update($, SAVINGS, (value) => change(value ?? EMPTY_SAVINGS))
     // ponytail: read-then-write, two sessions finishing agents at the same instant can drop one; a per-session key summed on read if that matters
@@ -36,7 +39,7 @@ async function track($: EngineInterface, config: Config, userEffort: string, cha
       total = change(((await $.store.get(TOTAL_KEY)) as Savings | undefined) ?? EMPTY_SAVINGS)
       await $.store.set(TOTAL_KEY, total)
     } catch {} // no store: the session's line alone
-    $.ui.status(formatStatus(savings, config.mode, userEffort, total))
+    $.ui.status(formatStatus(savings, config.mode, efforts.user, total, efforts.prompt))
   } catch {}
 }
 
@@ -102,8 +105,8 @@ export function routeAgentSpawns(on: On, config: Config, registered: ReadonlySet
   const pendingVerify = new Map<string, Verification>()
   // Routed agents (and verifiers) whose usage is still to be counted, by agentId, until their turn.complete.
   const costed = new Map<string, { routed: Model; parentModel?: string; isVerifier?: boolean }>()
-  // The user's effort, as the main loop's last request asked for it; unknown until one is seen.
-  let userEffort = '?'
+  // The main loop's last request: the effort it asked for and the one it ran with; unknown until one is seen.
+  const efforts: Efforts = { user: '?', prompt: '?' }
   // mainEffort: JEV's effort for each main-loop turn, by turnId, until the turn completes.
   const mainEfforts = new Map<string, Effort>()
   // Semaphore over the JEV calls in flight.
@@ -151,7 +154,7 @@ export function routeAgentSpawns(on: On, config: Config, registered: ReadonlySet
       mainEfforts.set(e.turnId, effort)
       const reasons = [`effort ${effort}: deliberation ${answers.deliberation.noul.toFixed(2)}`]
       logTo($, text.s, config.logLevel, warned, { ...entry, outcome: 'main', effort, reasons, jev: jevNumbers(answers) }, task)
-      await track($, config, userEffort, (savings) => ({ ...savings, route: `${text.s.mainRoute}·${effort}`, jevCalls: savings.jevCalls + 1 }))
+      await track($, config, efforts, (savings) => ({ ...savings, route: `${text.s.mainRoute}·${effort}`, jevCalls: savings.jevCalls + 1 }))
     } catch (err) {
       // The prompt keeps the user's effort; a missing key toasts once, as for the agents.
       const kind = err instanceof JevError ? err.kind : undefined
@@ -164,12 +167,21 @@ export function routeAgentSpawns(on: On, config: Config, registered: ReadonlySet
     return next(e)
   })
 
-  on('turn.step', async function* (_$, e, next) {
+  on('turn.step', async function* ($, e, next) {
     const wanted = e.agentId === undefined ? mainEfforts.get(e.turnId) : undefined
-    if (e.agentId === undefined && e.effort !== undefined) userEffort = String(e.effort)
-    // A model without effort keeps none; maxEffort bounds JEV's pick.
-    if (wanted === undefined || e.effort === undefined) return yield* next(e)
-    yield* next({ ...e, effort: projectEffort(wanted, config.efforts) })
+    // A model without effort keeps none; maxEffort bounds JEV's pick and, unless mode=off, the user's own effort.
+    const main = e.agentId === undefined && config.mode !== 'off'
+    const target = wanted ?? (main && (EFFORTS as readonly string[]).includes(String(e.effort)) ? (e.effort as Effort) : undefined)
+    const effort = target === undefined || e.effort === undefined ? e.effort : projectEffort(target, config.efforts)
+    if (e.agentId === undefined && e.effort !== undefined) {
+      efforts.user = String(e.effort)
+      // The line is redrawn only when the shown effort changes, not on every step.
+      if (String(effort) !== efforts.prompt) {
+        efforts.prompt = String(effort)
+        await track($, config, efforts, (savings) => savings)
+      }
+    }
+    return yield* next(effort === e.effort ? e : { ...e, effort })
   })
 
   on('agent.offer', { agent: PROFILE_MATCHER }, (_$, e) => ({ isOffered: (dispatching.get(e.agent) ?? 0) > 0 }))
@@ -229,7 +241,7 @@ export function routeAgentSpawns(on: On, config: Config, registered: ReadonlySet
     const jev = answers && jevNumbers(answers)
     logTo($, text.s, config.logLevel, warned, { tool_use_id: e.tool_use_id, description, outcome: fellBack ? 'fallback' : 'routed', models, effort: routed.effort, profile: routed.profile, reasons: routed.reasons, jev, error }, asked)
     const route = fellBack ? `${text.s.fallback} (${routed.reasons[0]})` : `${routed.model}·${routed.effort}·${routed.profile.replace(PROFILE_MATCHER, '')}`
-    await track($, config, userEffort, (savings) => ({ ...savings, route, jevCalls: savings.jevCalls + (answers ? 1 : 0) }))
+    await track($, config, efforts, (savings) => ({ ...savings, route, jevCalls: savings.jevCalls + (answers ? 1 : 0) }))
 
     // The engine raises agent.spawn inside this next(); the entry lives only for that call.
     decisions.set(e.tool_use_id, routed)
@@ -274,7 +286,7 @@ export function routeAgentSpawns(on: On, config: Config, registered: ReadonlySet
     const cost = costed.get(e.agentId)
     costed.delete(e.agentId)
     const usage = e.usage
-    if (cost && usage) await track($, config, userEffort, (savings) => addAgent(savings, usage, cost.routed, cost.parentModel, PRICES, cost.isVerifier))
+    if (cost && usage) await track($, config, efforts, (savings) => addAgent(savings, usage, cost.routed, cost.parentModel, PRICES, cost.isVerifier))
     const pending = pendingVerify.get(e.agentId)
     pendingVerify.delete(e.agentId)
     if (!pending || e.reason !== 'answer') return next(e)

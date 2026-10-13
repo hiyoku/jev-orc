@@ -78,13 +78,14 @@ All fields are in [docs/configuration.md](docs/configuration.md).
 
 **Note:** on a routed spawn, the MOD overrides the `model` and `effort` passed by hand. To choose
 manually, turn it off (`mode=off`) or use `explicit` and call without the `[jev]` marker.
-`maxModel`/`maxEffort` cap what JEV may pick.
+`maxModel`/`maxEffort` cap what JEV may pick. `maxEffort` also caps the effort of your own
+prompts (the main agent) when `mode` is not `off`, even with `mainEffort` off.
 
 ## Status line
 
 ```text
-jev ON · haiku·low·t-read · 42k tok $0.08 · vs opus/high ~$0.31 (-74%)
-jev OFF
+jev ON · haiku·low·t-read · 42k tok $0.08 · vs opus/high ~$0.31 (-74%) — high
+jev OFF — high
 ```
 
 - `haiku·low·t-read`: last routing (model, effort, profile); on failure, `fallback (<reason>)`.
@@ -93,6 +94,8 @@ jev OFF
 - `~$0.31 (-74%)`: **estimate**. The counterfactual is the same tokens on the user's model; it does
   not model how much the effort changes the token count. `+x%` means the routed run cost more.
   An estimate below US$ 0.0005 shows as `<$0.001`.
+- `— high`: effort the main loop's last request ran with (after `mainEffort`, if on); subagents
+  do not change it. Hidden until the MOD sees a main-loop turn.
 - `logLevel` does not affect the status line.
 
 Prices are the list prices in `src/config.ts` (US$/MTok).

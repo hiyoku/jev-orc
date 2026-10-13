@@ -79,13 +79,14 @@ Todos os campos estão em [docs/configuration.pt-BR.md](docs/configuration.pt-BR
 
 **Atenção:** num spawn roteado, o MOD sobrescreve o `model` e o `effort` passados à mão. Para
 escolher manualmente, desligue (`mode=off`) ou use `explicit` e chame sem o marcador `[jev]`.
-`maxModel`/`maxEffort` limitam o que o JEV pode escolher.
+`maxModel`/`maxEffort` limitam o que o JEV pode escolher. O `maxEffort` também limita o effort dos
+seus próprios prompts (o agente principal) quando `mode` não é `off`, mesmo com `mainEffort` desligado.
 
 ## Status line
 
 ```text
-jev ON · haiku·low·t-read · 42k tok $0.08 · vs opus/high ~$0.31 (-74%)
-jev OFF
+jev ON · haiku·low·t-read · 42k tok $0.08 · vs opus/high ~$0.31 (-74%) — high
+jev OFF — high
 ```
 
 - `haiku·low·t-read`: último roteamento (modelo, effort, perfil); em falha, `fallback (<motivo>)`.
@@ -94,6 +95,8 @@ jev OFF
 - `~$0.31 (-74%)`: **estimativa**. O contrafactual são os mesmos tokens no modelo do usuário; não
   modela quanto o effort muda a contagem de tokens. `+x%` indica que o roteado saiu mais caro.
   Estimativa abaixo de US$ 0,0005 aparece como `<$0.001`.
+- `— high`: effort com que rodou a última requisição do loop principal (após o `mainEffort`, se
+  ligado); subagentes não o alteram. Oculto até o MOD ver um turno do loop principal.
 - `logLevel` não afeta a status line.
 
 Os preços são os de tabela em `src/config.ts` (US$/MTok).

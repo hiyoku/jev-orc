@@ -472,6 +472,7 @@ test('mainEffort is off by default: no JEV call, the prompt keeps its effort', a
   await s.step($, 'm0', 'claude-sonnet-5-5')
   expect(w.bodies).toHaveLength(0)
   expect(s.efforts).toEqual(['high'])
+  expect(w.statuses.at(-1)).toBe('jev ON — high')
 })
 
 test('mainEffort: JEV sets the main turn effort only, until the turn completes', { options: { mainEffort: true } }, async ($, on) => {
@@ -486,6 +487,9 @@ test('mainEffort: JEV sets the main turn effort only, until the turn completes',
   expect(s.efforts).toEqual(['low', 'high', 'high'])
   expect(w.bodies[0].state).toMatchObject({ tarefa: 'commit this' })
   expect(w.statuses.at(-1)).toContain('prompt·low')
+  // the dash shows the main loop's effort as run, not a subagent's
+  expect(w.statuses.at(-1)).toMatch(/ — high$/)
+  expect(w.statuses).toContain('jev ON · prompt·low — low')
   expect(w.files.get(`${HOME}/${LOG_PATH}`)).toContain('"outcome":"main"')
 })
 
@@ -505,4 +509,23 @@ test('mainEffort: without JEV the prompt keeps its effort', { options: { mainEff
   await s.step($, 'm3', 'claude-sonnet-5-5')
   expect(s.efforts).toEqual(['high'])
   expect(w.files.get(`${HOME}/${LOG_PATH}`)).toContain('"error":"missing_key"')
+})
+
+test('maxEffort also caps the main prompt\'s own effort, without mainEffort', { options: { maxEffort: 'medium' } }, async ($, on) => {
+  const s = stepper(on)
+  const w = await world($, on)
+  await $.turn.start({ text: 'commit this', turnId: 'm4' })
+  await s.step($, 'm4', 'claude-sonnet-5-5')
+  await s.step($, 'm4', 'claude-sonnet-5-5', 'a-sub')
+  // high -> medium for the main loop; a subagent's request is left to its own routing
+  expect(s.efforts).toEqual(['medium', 'high'])
+  expect(w.bodies).toHaveLength(0)
+})
+
+test('mode=off leaves the main prompt\'s effort untouched', { options: { maxEffort: 'low', mode: 'off' } }, async ($, on) => {
+  const s = stepper(on)
+  await world($, on)
+  await $.turn.start({ text: 'commit this', turnId: 'm5' })
+  await s.step($, 'm5', 'claude-sonnet-5-5')
+  expect(s.efforts).toEqual(['high'])
 })

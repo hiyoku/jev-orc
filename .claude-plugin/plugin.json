@@ -39,7 +39,7 @@
     "maxEffort": {
       "type": "string",
       "title": "Max effort",
-      "description": "The highest effort JEV may pick, for subagents and (mainEffort) your prompts.",
+      "description": "The highest effort JEV may pick for subagents, and the cap on your own prompts' effort (unless mode=off).",
       "default": "xhigh",
       "options": [
         "low",
