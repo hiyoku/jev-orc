@@ -2,7 +2,8 @@ import type { AgentSpawnInput, On } from 'claude-code'
 import { expect, mock, test, type Engine } from 'claude-code/testing'
 import { FALLBACK_PROFILE } from '../agents/profiles'
 import { LOG_PATH } from '../log'
-import { isOwnSpawn, MAX_TASK_CHARS } from './spawn'
+import { MAX_AGENTS, PARALLELISM } from '../config'
+import { isOwnSpawn, MAX_TASK_CHARS, TOTAL_KEY } from './spawn'
 
 const KEY = 'sk-test'
 const HOME = '/home/u'
@@ -48,6 +49,7 @@ async function world($: Engine, on: On, opts: World = {}) {
   const statuses: (string | undefined)[] = []
   // $.state held by the host: it outlives the plugin's module, as across a reload.
   const state = new Map<string, { value: unknown; version: number }>()
+  const store = new Map<string, unknown>()
   mock.env(on, { HOME, ...(opts.env ?? { TYPESAFE_API_KEY: KEY }) })
   const clock = mock.clock(on)
   on('session.start', (_, e) => e)
@@ -66,6 +68,8 @@ async function world($: Engine, on: On, opts: World = {}) {
     state.set(e.key, { value: e.value, version: held.version + 1 })
     return { value: { isSet: true, version: held.version + 1 } }
   })
+  on('store.get', (_, e) => ({ value: store.get(e.key) }))
+  on('store.set', (_, e) => (store.set(e.key, e.value), { value: undefined }))
   on('fs.exists', (_, e) => ({ value: files.has(e.path) }))
   on('fs.read', (_, e) => ({ value: files.get(e.path)! }))
   on('fs.write', (_, e) => (files.set(e.path, e.text), { value: undefined }))
@@ -90,7 +94,7 @@ async function world($: Engine, on: On, opts: World = {}) {
   })
   await $.session.start(START)
   const logLines = () => (files.get(`${HOME}/${LOG_PATH}`) ?? '').split('\n').filter(Boolean).map((l) => JSON.parse(l))
-  return { tools, spawns, toasts, bodies, auths, registers, clock, files, statuses, logLines, state }
+  return { tools, spawns, toasts, bodies, auths, registers, clock, files, statuses, logLines, state, store }
 }
 
 const agent = (id: string, extra: Partial<Agent> = {}): Agent => ({
@@ -132,12 +136,6 @@ test('JEV timeout falls back, with fallbackEffort', async ($, on) => {
   expect(w.tools[0].effort).toBe('medium')
   expect(w.spawns[0].model).toBe('sonnet')
   expect(w.spawns[0].subagentType).toBe(FALLBACK_PROFILE)
-})
-
-test('fallback applies a configured fallbackEffort', { options: { fallbackEffort: 'low' } }, async ($, on) => {
-  const w = await world($, on, { env: {} })
-  await callAgent($, agent('fe'))
-  expect(w.tools[0].effort).toBe('low')
 })
 
 test('missing key: fallback and a single toast', async ($, on) => {
@@ -271,7 +269,7 @@ test('a spawn this plugin caused, or on its own profile, is its own', () => {
   expect(isOwnSpawn('engine', 'jev-orchestrator', 'general-purpose')).toBe(false)
 })
 
-test('a jev-orchestrator:* type does not call the JEV', { options: { agentsIntercept: ['jev-orchestrator:t-read'] } }, async ($, on) => {
+test('a jev-orchestrator:* type does not call the JEV', async ($, on) => {
   const w = await world($, on)
   // The call itself is refused beneath: agent.offer hides the profile outside a routed call.
   await callAgent($, agent('own', { subagent_type: 'jev-orchestrator:t-read' })).catch(() => {})
@@ -291,7 +289,7 @@ test('a repeated tool_use_id is routed once', async ($, on) => {
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 1))
 
-test('10 parallel spawns: right decisions, at most parallelism JEV calls in flight', { options: { maxAgents: 10 } }, async ($, on) => {
+test('MAX_AGENTS parallel spawns: right decisions, at most PARALLELISM JEV calls in flight', async ($, on) => {
   let inFlight = 0
   let peak = 0
   const w = await world($, on, {
@@ -302,10 +300,10 @@ test('10 parallel spawns: right decisions, at most parallelism JEV calls in flig
       return body.state.tarefa === 'edit' ? WRITES : READ_ONLY
     },
   })
-  const ids = Array.from({ length: 10 }, (_, i) => `p${i}`)
+  const ids = Array.from({ length: MAX_AGENTS }, (_, i) => `p${i}`)
   await Promise.all(ids.map((id, i) => callAgent($, agent(id, { prompt: i % 2 ? 'edit' : 'read' }))))
-  expect(peak).toBe(4)
-  expect(w.bodies).toHaveLength(10)
+  expect(peak).toBe(PARALLELISM)
+  expect(w.bodies).toHaveLength(MAX_AGENTS)
   expect(new Set(w.registers).size).toBe(w.registers.length)
   for (const [i, id] of ids.entries()) {
     const spawn = w.spawns.find((s) => s.tool_use_id === id)!
@@ -314,53 +312,45 @@ test('10 parallel spawns: right decisions, at most parallelism JEV calls in flig
   }
 })
 
-test('a queue wait that would overrun the hook budget falls back', { options: { parallelism: 1 } }, async ($, on) => {
+test('a queue wait that would overrun the hook budget falls back', async ($, on) => {
   const w = await world($, on, { jev: () => new Promise(() => {}) })
-  const first = callAgent($, agent('holder'))
-  const second = callAgent($, agent('queued'))
-  await w.clock.advance(1500) // budget 10000 - jevTimeoutMs 8000 - margin 500
-  await second
-  expect(w.bodies).toHaveLength(1)
+  const holders = Array.from({ length: PARALLELISM }, (_, i) => callAgent($, agent(`holder${i}`)))
+  const queued = callAgent($, agent('queued'))
+  await w.clock.advance(1500) // budget 10000 - JEV_TIMEOUT_MS 8000 - margin 500
+  await queued
+  expect(w.bodies).toHaveLength(PARALLELISM)
   expect(w.spawns[0].tool_use_id).toBe('queued')
   expect(w.spawns[0].subagentType).toBe(FALLBACK_PROFILE)
   await w.clock.advance(TIMEOUT_MS)
-  await first
+  await Promise.all(holders)
 })
 
-test('maxAgents reached falls back until a routed agent completes', { options: { maxAgents: 1 } }, async ($, on) => {
+test('the agent limit falls back until a routed agent completes', async ($, on) => {
   const w = await world($, on)
-  await callAgent($, agent('m1'))
-  await callAgent($, agent('m2'))
-  expect(w.bodies).toHaveLength(1)
-  expect(w.spawns.map((s) => s.subagentType)).toEqual(['jev-orchestrator:t-read', FALLBACK_PROFILE])
+  for (let i = 0; i < MAX_AGENTS; i++) await callAgent($, agent(`m${i}`))
+  await callAgent($, agent('over'))
+  expect(w.bodies).toHaveLength(MAX_AGENTS)
+  expect(w.spawns.at(-1)!.subagentType).toBe(FALLBACK_PROFILE)
   const done = { answer: '', durationMs: 1, isAborted: false, turnId: 't', reason: 'answer' } as const
-  await $.turn.complete({ ...done })
-  await callAgent($, agent('m3'))
-  expect(w.bodies).toHaveLength(1)
-  for (const id of ['a-m1', 'a-m2', 'a-m3']) await $.turn.complete({ ...done, agentId: id })
-  await callAgent($, agent('m4'))
-  expect(w.bodies).toHaveLength(2)
-  expect(w.spawns[3].subagentType).toBe('jev-orchestrator:t-read')
+  await $.turn.complete({ ...done }) // the main loop's turn frees nothing
+  await callAgent($, agent('still'))
+  expect(w.bodies).toHaveLength(MAX_AGENTS)
+  for (const id of ['a-m0', 'a-over', 'a-still']) await $.turn.complete({ ...done, agentId: id })
+  await callAgent($, agent('again'))
+  expect(w.bodies).toHaveLength(MAX_AGENTS + 1)
+  expect(w.spawns.at(-1)!.subagentType).toBe('jev-orchestrator:t-read')
 })
 
-test('a burst of Agent calls routes at most maxAgents, the rest falls back', { options: { maxAgents: 2 } }, async ($, on) => {
+test('a burst of Agent calls routes at most MAX_AGENTS, the rest falls back', async ($, on) => {
   const w = await world($, on, { jev: async () => (await tick(), READ_ONLY) })
-  const ids = Array.from({ length: 5 }, (_, i) => `b${i}`)
+  const ids = Array.from({ length: MAX_AGENTS + 3 }, (_, i) => `b${i}`)
   await Promise.all(ids.map((id) => callAgent($, agent(id))))
   await settle()
-  expect(w.bodies).toHaveLength(2)
-  expect(w.spawns.filter((s) => s.subagentType === 'jev-orchestrator:t-read')).toHaveLength(2)
+  expect(w.bodies).toHaveLength(MAX_AGENTS)
+  expect(w.spawns.filter((s) => s.subagentType === 'jev-orchestrator:t-read')).toHaveLength(MAX_AGENTS)
   const fallbacks = w.logLines().filter((l) => l.outcome === 'fallback')
   expect(fallbacks).toHaveLength(3)
   for (const l of fallbacks) expect(l.reasons).toEqual(['maxAgents'])
-})
-
-test('a slot reserved by a call that never spawns is released', { options: { maxAgents: 1, agentsTarget: ['explore'] } }, async ($, on) => {
-  const w = await world($, on, { jev: (body) => (body.state.tarefa === 'edit' ? WRITES : READ_ONLY) })
-  await Promise.all([callAgent($, agent('s1', { prompt: 'edit' })), (async () => (await tick(), callAgent($, agent('s2'))))()])
-  expect(w.bodies).toHaveLength(2)
-  expect(w.spawns.find((s) => s.tool_use_id === 's1')!.model).toBeUndefined()
-  expect(w.spawns.find((s) => s.tool_use_id === 's2')!.subagentType).toBe('jev-orchestrator:t-read')
 })
 
 // Decision log
@@ -407,14 +397,6 @@ test('logLevel off writes nothing', { options: { logLevel: 'off' } }, async ($, 
   expect(w.files.size).toBe(0)
 })
 
-test('a skipped decision is logged as skip', { options: { agentsTarget: ['explore'] } }, async ($, on) => {
-  const w = await world($, on, { jev: () => WRITES })
-  await callAgent($, agent('sk', { prompt: 'edit' }))
-  await settle()
-  expect(w.logLines()[0]).toMatchObject({ tool_use_id: 'sk', outcome: 'skip', models: [] })
-  expect(w.spawns[0].model).toBeUndefined()
-})
-
 test('10 parallel spawns write 10 whole lines', async ($, on) => {
   const w = await world($, on)
   const ids = Array.from({ length: 10 }, (_, i) => `q${i}`)
@@ -436,12 +418,12 @@ test('mode off shows OFF', { options: { mode: 'off' } }, async ($, on) => {
   expect((await world($, on)).statuses.at(-1)).toBe('jev OFF')
 })
 
-test('a routed agent turn adds its usage, priced at its model against the parent model', { options: { jevPricePerCall: 0.015 } }, async ($, on) => {
+test('a routed agent turn adds its usage, priced at its model against the parent model', async ($, on) => {
   const w = await world($, on)
   await callAgent($, agent('s1'))
   await $.turn.complete({ ...done, agentId: 'a-s1', usage: { ...usage, model: 'claude-haiku-5-5' } })
-  // haiku: 40k*0.1 + 2k*0.5 = $0.005 for the agent, $0.02 with the JEV call; the parent (haiku) would cost $0.005
-  expect(w.statuses.at(-1)).toBe('jev ON · haiku·low·t-read · 42k tok $0.02 · vs haiku/? ~$0.005 (+300%)')
+  // haiku: 40k*0.1 + 2k*0.5 = $0.005 for the agent; the parent (haiku) costs the same
+  expect(w.statuses.at(-1)).toBe('jev ON · haiku·low·t-read · 42k tok $0.005 · vs haiku/? ~$0.005 (0%) · total $0.005 (0%)')
 })
 
 test('the savings survive a module reload, kept in $.state', async ($, on) => {
@@ -453,9 +435,74 @@ test('the savings survive a module reload, kept in $.state', async ($, on) => {
   expect(w.statuses.at(-1)).toContain('43k tok')
 })
 
+test('the total across sessions is kept in $.store and shown', async ($, on) => {
+  const w = await world($, on)
+  w.store.set(TOTAL_KEY, { agents: 9, tokens: 1000, cost: 1, estimated: 2, jevCalls: 0, parent: 'opus', route: '' })
+  await callAgent($, agent('s3'))
+  await $.turn.complete({ ...done, agentId: 'a-s3', usage: { ...usage, model: 'claude-haiku-5-5' } })
+  expect(w.store.get(TOTAL_KEY)).toMatchObject({ agents: 10, tokens: 43_000, jevCalls: 1 })
+  expect(w.statuses.at(-1)).toContain(' · total $1.00 (-50%)')
+})
+
 test('a turn without a routed agent changes nothing', async ($, on) => {
   const w = await world($, on)
   await $.turn.complete({ ...done, agentId: 'stranger', usage: { ...usage, model: 'claude-haiku-5-5' } })
   expect(w.state.has('savings')).toBe(false)
   expect(w.statuses.at(-1)).toBe('jev ON')
+})
+
+// mainEffort: the test's turn.step hook stands for the API and records the effort each request asked.
+function stepper(on: On) {
+  const efforts: unknown[] = []
+  on('turn.start', (_, e) => ({ turnId: e.turnId }))
+  on('turn.step', async function* (_, e) {
+    efforts.push(e.effort)
+    return { turnId: e.turnId, index: e.index, answer: '', toolUses: [], stopReason: 'end_turn', usage: null }
+  })
+  const step = async ($: Engine, turnId: string, model: string, agentId?: string) => {
+    for await (const _ of $.turn.step({ turnId, index: 0, model, effort: 'high', messageCount: 1, agentId } as never));
+  }
+  return { efforts, step }
+}
+
+test('mainEffort is off by default: no JEV call, the prompt keeps its effort', async ($, on) => {
+  const s = stepper(on)
+  const w = await world($, on)
+  await $.turn.start({ text: 'commit this', turnId: 'm0' })
+  await s.step($, 'm0', 'claude-sonnet-5-5')
+  expect(w.bodies).toHaveLength(0)
+  expect(s.efforts).toEqual(['high'])
+})
+
+test('mainEffort: JEV sets the main turn effort only, until the turn completes', { options: { mainEffort: true } }, async ($, on) => {
+  const s = stepper(on)
+  const w = await world($, on)
+  await $.turn.start({ text: 'commit this', turnId: 'm1' })
+  await s.step($, 'm1', 'claude-sonnet-5-5')
+  await s.step($, 'm1', 'claude-sonnet-5-5', 'a-sub')
+  await $.turn.complete({ ...done, turnId: 'm1' })
+  await s.step($, 'm1', 'claude-sonnet-5-5')
+  // deliberation 0.1 -> low; a subagent's request and a finished turn keep theirs
+  expect(s.efforts).toEqual(['low', 'high', 'high'])
+  expect(w.bodies[0].state).toMatchObject({ tarefa: 'commit this' })
+  expect(w.statuses.at(-1)).toContain('prompt·low')
+  expect(w.files.get(`${HOME}/${LOG_PATH}`)).toContain('"outcome":"main"')
+})
+
+test('mainEffort: maxEffort bounds the pick', { options: { mainEffort: true, maxEffort: 'medium' } }, async ($, on) => {
+  const s = stepper(on)
+  await world($, on, { jev: () => ({ ...READ_ONLY, deliberation: { noul: 0.9 } }) })
+  await $.turn.start({ text: 'design the cache', turnId: 'm2' })
+  await s.step($, 'm2', 'claude-opus-5-5')
+  // deliberation 0.9 asks for max: capped at medium
+  expect(s.efforts).toEqual(['medium'])
+})
+
+test('mainEffort: without JEV the prompt keeps its effort', { options: { mainEffort: true } }, async ($, on) => {
+  const s = stepper(on)
+  const w = await world($, on, { env: {} })
+  await $.turn.start({ text: 'commit this', turnId: 'm3' })
+  await s.step($, 'm3', 'claude-sonnet-5-5')
+  expect(s.efforts).toEqual(['high'])
+  expect(w.files.get(`${HOME}/${LOG_PATH}`)).toContain('"error":"missing_key"')
 })

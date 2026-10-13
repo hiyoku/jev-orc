@@ -25,157 +25,22 @@
         "explicit"
       ]
     },
-    "effortsHaiku": {
+    "maxModel": {
       "type": "string",
-      "multiple": true,
-      "title": "Efforts with haiku",
-      "description": "Efforts allowed with haiku (low..max). Empty disables haiku.",
-      "default": [
-        "low",
-        "medium"
-      ]
-    },
-    "effortsSonnet": {
-      "type": "string",
-      "multiple": true,
-      "title": "Efforts with sonnet",
-      "description": "Efforts allowed with sonnet (low..max). Empty disables sonnet.",
-      "default": [
-        "low",
-        "medium",
-        "high"
-      ]
-    },
-    "effortsOpus": {
-      "type": "string",
-      "multiple": true,
-      "title": "Efforts with opus",
-      "description": "Efforts allowed with opus (low..max). Empty disables opus.",
-      "default": [
-        "medium",
-        "high",
-        "xhigh"
-      ]
-    },
-    "fallbackOrder": {
-      "type": "string",
-      "multiple": true,
-      "title": "Fallback order",
-      "description": "Models tried, in order, when the chosen one is disabled.",
-      "default": [
-        "sonnet",
-        "opus",
-        "haiku"
-      ]
-    },
-    "agentsIntercept": {
-      "type": "string",
-      "multiple": true,
-      "title": "Intercepted agents",
-      "description": "Agent types the mod rewrites; the others pass through untouched.",
-      "default": [
-        "general-purpose",
-        "Explore"
-      ]
-    },
-    "agentsTarget": {
-      "type": "string",
-      "multiple": true,
-      "title": "Target profiles",
-      "description": "Profiles the mod may switch to (explore, general).",
-      "default": [
-        "explore",
-        "general"
-      ]
-    },
-    "forceModel": {
-      "type": "string",
-      "title": "Force model",
-      "description": "jev: JEV decides.",
-      "default": "jev",
-      "options": [
-        "jev",
-        "haiku",
-        "sonnet",
-        "opus"
-      ]
-    },
-    "forceEffort": {
-      "type": "string",
-      "title": "Force effort",
-      "description": "Fixed effort for any profile. jev: JEV decides.",
-      "default": "jev",
-      "options": [
-        "jev",
-        "low",
-        "medium",
-        "high",
-        "xhigh",
-        "max"
-      ]
-    },
-    "forceEffortExplore": {
-      "type": "string",
-      "title": "Force effort (explore)",
-      "description": "Fixed effort for the explore profile only.",
-      "default": "jev",
-      "options": [
-        "jev",
-        "low",
-        "medium",
-        "high",
-        "xhigh",
-        "max"
-      ]
-    },
-    "forceEffortGeneral": {
-      "type": "string",
-      "title": "Force effort (general)",
-      "description": "Fixed effort for the general profile only.",
-      "default": "jev",
-      "options": [
-        "jev",
-        "low",
-        "medium",
-        "high",
-        "xhigh",
-        "max"
-      ]
-    },
-    "forceAgent": {
-      "type": "string",
-      "title": "Force profile",
-      "description": "Fixed profile. jev: JEV decides.",
-      "default": "jev",
-      "options": [
-        "jev",
-        "explore",
-        "general"
-      ]
-    },
-    "forceTools": {
-      "type": "string",
-      "multiple": true,
-      "title": "Force tools",
-      "description": "Fixed tools (still filtered by toolsDeny and the catalog). Empty: JEV decides.",
-      "default": []
-    },
-    "fallbackModel": {
-      "type": "string",
-      "title": "Fallback: model",
-      "description": "Model used when JEV fails.",
-      "default": "sonnet",
+      "title": "Max model",
+      "description": "The strongest model JEV may pick for a subagent.",
+      "default": "opus",
       "options": [
         "haiku",
         "sonnet",
         "opus"
       ]
     },
-    "fallbackEffort": {
+    "maxEffort": {
       "type": "string",
-      "title": "Fallback: effort",
-      "description": "Effort used when JEV fails.",
-      "default": "medium",
+      "title": "Max effort",
+      "description": "The highest effort JEV may pick, for subagents and (mainEffort) your prompts.",
+      "default": "xhigh",
       "options": [
         "low",
         "medium",
@@ -184,71 +49,29 @@
         "max"
       ]
     },
-    "fallbackAgent": {
-      "type": "string",
-      "title": "Fallback: agent",
-      "description": "Agent type used when JEV fails.",
-      "default": "general-purpose"
+    "mainEffort": {
+      "type": "boolean",
+      "title": "Main prompt effort",
+      "description": "JEV sets the effort of your own prompts (the session model stays). Adds a JEV call before each prompt.",
+      "default": false
     },
     "multiModel": {
       "type": "boolean",
       "title": "Multi-model",
-      "description": "Allows different models within the same task.",
+      "description": "A second, stronger model reviews hard tasks JEV is unsure about.",
       "default": false
     },
-    "maxModelsPerTask": {
-      "type": "number",
-      "title": "Max models per task",
-      "description": "Integer >= 1.",
-      "default": 1,
-      "min": 1
-    },
-    "maxAgents": {
-      "type": "number",
-      "title": "Max agents",
-      "description": "Maximum agents per request.",
-      "default": 8,
-      "min": 1
-    },
-    "parallelism": {
-      "type": "number",
-      "title": "Parallelism",
-      "description": "Simultaneous agents.",
-      "default": 4,
-      "min": 1
-    },
-    "toolsAllow": {
+    "typesafeApiKey": {
       "type": "string",
-      "multiple": true,
-      "title": "Allowed tools",
-      "description": "Real tool names JEV may assign.",
-      "default": []
-    },
-    "toolsDeny": {
-      "type": "string",
-      "multiple": true,
-      "title": "Denied tools",
-      "description": "Real tool names never assigned.",
-      "default": []
-    },
-    "jevTimeoutMs": {
-      "type": "number",
-      "title": "JEV timeout (ms)",
-      "description": "Maximum wait for JEV (up to 9000; the hook has 10 s).",
-      "default": 8000,
-      "min": 1
+      "title": "JEV API key (TypeSafe or OpenRouter)",
+      "description": "TypeSafe key, or an OpenRouter key with the OpenRouter endpoint. Kept in the system secure storage (Keychain on macOS). Empty: uses TYPESAFE_API_KEY or JEV_API_KEY from the environment.",
+      "sensitive": true
     },
     "jevEndpoint": {
       "type": "string",
       "title": "JEV endpoint",
-      "description": "JEV API URL.",
+      "description": "System One API URL (https). OpenRouter: https://openrouter.ai/api/v1/systemone",
       "default": "https://api.typesafe.ai/v1/systemone"
-    },
-    "typesafeApiKey": {
-      "type": "string",
-      "title": "TypeSafe / JEV API key",
-      "description": "JEV API key, kept in the system secure storage (Keychain on macOS). Empty: uses TYPESAFE_API_KEY or JEV_API_KEY from the environment.",
-      "sensitive": true
     },
     "logLevel": {
       "type": "string",
@@ -260,31 +83,6 @@
         "info",
         "debug"
       ]
-    },
-    "priceHaiku": {
-      "type": "string",
-      "title": "Haiku price (US$/MTok)",
-      "description": "input,output,cacheRead,cacheWrite in US$ per MTok (5-minute cache write). Invalid falls back to the default.",
-      "default": "0.1,0.5,0.01,0.125"
-    },
-    "priceSonnet": {
-      "type": "string",
-      "title": "Sonnet price (US$/MTok)",
-      "description": "input,output,cacheRead,cacheWrite in US$ per MTok (5-minute cache write). Invalid falls back to the default.",
-      "default": "2,10,0.2,2.5"
-    },
-    "priceOpus": {
-      "type": "string",
-      "title": "Opus price (US$/MTok)",
-      "description": "input,output,cacheRead,cacheWrite in US$ per MTok (5-minute cache write). Invalid falls back to the default.",
-      "default": "4,20,0.2,5"
-    },
-    "jevPricePerCall": {
-      "type": "number",
-      "title": "Price per JEV call (US$)",
-      "description": "Added to the real cost in the status line.",
-      "default": 0,
-      "min": 0
     }
   },
   "types": "./types/index.d.ts"

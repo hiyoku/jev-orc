@@ -53,20 +53,28 @@ export const abbreviateTokens = (n: number): string =>
 export const usd = (value: number): string =>
   value > 0 && value < 0.0005 ? '<$0.001' : `$${value > 0 && value < 0.01 ? value.toFixed(3) : value.toFixed(2)}`
 
-export function formatStatus(savings: Savings, mode: Mode, jevPricePerCall: number, userEffort: string): string {
+// " (-74%)" against the counterfactual; empty when there is none to compare.
+function percentVs(real: number, estimated: number | null): string {
+  if (estimated === null || estimated <= 0) return ''
+  const percent = Math.round(((real - estimated) / estimated) * 100)
+  return ` (${percent > 0 ? '+' : ''}${percent}%)`
+}
+
+// `total`: every session's savings, kept in $.store; shown from the first routed agent ever.
+export function formatStatus(savings: Savings, mode: Mode, userEffort: string, total?: Savings): string {
   if (mode === 'off') return 'jev OFF'
   const parts = ['jev ON']
   if (savings.route) parts.push(savings.route)
   if (savings.agents > 0) {
-    const real = savings.cost + savings.jevCalls * jevPricePerCall
+    const real = savings.cost
     parts.push(`${abbreviateTokens(savings.tokens)} tok ${usd(real)}`)
     const versus = `vs ${savings.parent}/${userEffort}`
     const estimated = savings.estimated
-    if (estimated === null || estimated <= 0) parts.push(versus)
-    else {
-      const percent = Math.round(((real - estimated) / estimated) * 100)
-      parts.push(`${versus} ~${usd(estimated)} (${percent > 0 ? '+' : ''}${percent}%)`)
-    }
+    parts.push(estimated === null || estimated <= 0 ? versus : `${versus} ~${usd(estimated)}${percentVs(real, estimated)}`)
+  }
+  if (total && total.agents > 0) {
+    const real = total.cost
+    parts.push(`total ${usd(real)}${percentVs(real, total.estimated)}`)
   }
   return parts.join(' · ')
 }

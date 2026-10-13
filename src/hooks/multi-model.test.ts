@@ -1,11 +1,11 @@
 import type { AgentSpawnInput, On } from 'claude-code'
 import { expect, mock, test, type Engine } from 'claude-code/testing'
-import { loadConfig } from '../config'
+import { loadConfig, MAX_AGENTS } from '../config'
 import { decide } from '../domain/policy'
 import type { JevAnswers } from '../jev/answers'
 import { LOG_PATH } from '../log'
 
-const MULTI = { multiModel: true, maxModelsPerTask: 2 }
+const MULTI = { multiModel: true }
 const answers = (score: number, confidence: number): JevAnswers => ({
   complexity: { score, confidence },
   deliberation: { noul: 0.1 },
@@ -14,11 +14,7 @@ const answers = (score: number, confidence: number): JevAnswers => ({
 })
 // Opus-tier complexity with low confidence: the case that justifies a verifier.
 const HARD = answers(2.8, 0.3)
-const modelsOf = (a: JevAnswers, options = {}) => {
-  const d = decide(a, loadConfig(options).config)
-  if ('skip' in d) throw new Error(d.skip)
-  return d
-}
+const modelsOf = (a: JevAnswers, options = {}) => decide(a, loadConfig(options).config)
 
 // Policy
 
@@ -36,13 +32,8 @@ test('on with justification: the strongest other enabled model verifies', () => 
   const d = modelsOf(HARD, MULTI)
   expect(d.models).toEqual(['opus', 'sonnet'])
   expect(d.reasons.some((r) => r.startsWith('verifier sonnet:'))).toBe(true)
-  expect(modelsOf(HARD, { ...MULTI, effortsOpus: [] }).models).toEqual(['sonnet', 'haiku'])
-  expect(modelsOf(HARD, { ...MULTI, effortsOpus: [], effortsSonnet: [] }).models).toEqual(['haiku'])
-})
-
-test('maxModelsPerTask 1 wins; a forced model has no verifier', () => {
-  expect(modelsOf(HARD, { ...MULTI, maxModelsPerTask: 1 }).models).toEqual(['opus'])
-  expect(modelsOf(HARD, { ...MULTI, forceModel: 'opus' }).models).toEqual(['opus'])
+  expect(modelsOf(HARD, { ...MULTI, maxModel: 'sonnet' }).models).toEqual(['sonnet', 'haiku'])
+  expect(modelsOf(HARD, { ...MULTI, maxModel: 'haiku' }).models).toEqual(['haiku'])
 })
 
 // Runtime
@@ -126,12 +117,12 @@ test('multiModel off: no verifier', async ($, on) => {
   expect(w.spawns).toHaveLength(1)
 })
 
-test('maxAgents full: the verifier is not spawned', { options: { ...MULTI, maxAgents: 1 } }, async ($, on) => {
+test('agent limit full: the verifier is not spawned', { options: MULTI }, async ($, on) => {
   const w = await world($, on)
-  await w.call('p1')
-  await w.call('p2') // falls back on maxAgents, and still counts as active
+  // MAX_AGENTS routed, then one more that falls back and still counts as active
+  for (let i = 1; i <= MAX_AGENTS + 1; i++) await w.call(`p${i}`)
   await $.turn.complete({ ...done, agentId: 'a1', answer: 'x' })
   await tick()
-  expect(w.spawns).toHaveLength(2)
-  expect(w.toasts).toContain('JEV: verifier not started: maxAgents')
+  expect(w.spawns).toHaveLength(MAX_AGENTS + 1)
+  expect(w.toasts).toContain('JEV: verifier not started: agent limit reached')
 })

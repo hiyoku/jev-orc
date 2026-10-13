@@ -1,13 +1,11 @@
 import { expect, test } from 'claude-code/testing'
-import { loadConfig } from '../config'
 import type { Decision } from '../domain/policy'
 import type { ToolGroup } from '../tools/groups'
 import { buildProfiles, FALLBACK_PROFILE, profileFor } from './profiles'
 
-const cfg = (options = {}) => loadConfig(options).config
-const names = (options = {}) => buildProfiles(cfg(options)).map((spec) => spec.name)
+const names = () => buildProfiles().map((spec) => spec.name)
 
-const decision = (toolGroups: ToolGroup[], extra: Partial<Extract<Decision, { models: unknown }>> = {}): Decision => ({
+const decision = (toolGroups: ToolGroup[], extra: Partial<Decision> = {}): Decision => ({
   models: ['sonnet'],
   effort: 'low',
   toolGroups,
@@ -25,75 +23,31 @@ test('default config: 32 combinations plus fallback', () => {
 })
 
 test('name is stable and follows the group order, not the decision order', () => {
-  expect(profileFor(decision(['shell', 'edit', 'read']), cfg())).toBe('jev-orchestrator:t-read-edit-shell')
+  expect(profileFor(decision(['shell', 'edit', 'read']))).toBe('jev-orchestrator:t-read-edit-shell')
 })
 
 test('names are valid and at most 64 chars', () => {
-  for (const name of names({ forceTools: ['Read'] })) {
+  for (const name of names()) {
     expect(name).toMatch(/^[A-Za-z0-9_-]{1,64}$/)
   }
 })
 
 test('specs carry tools and prompt, never model or effort', () => {
-  const spec = buildProfiles(cfg()).find((s) => s.name === 't-read-edit-docs')!
+  const spec = buildProfiles().find((s) => s.name === 't-read-edit-docs')!
   expect(spec.tools).toEqual(['Read', 'Grep', 'Glob', 'Edit', 'Write', 'NotebookEdit', 'mcp__context7__*'])
   expect(spec.model).toBeUndefined()
   expect(spec.effort).toBeUndefined()
 })
 
 test('read-only profiles say so in the prompt', () => {
-  const specs = buildProfiles(cfg())
+  const specs = buildProfiles()
   expect(specs.find((s) => s.name === 't-read')!.prompt).toContain('read-only')
   expect(specs.find((s) => s.name === 't-read-edit')!.prompt).not.toContain('read-only')
 })
 
-test('agentsTarget general drops the profiles without edit', () => {
-  const list = names({ agentsTarget: ['general'] })
-  expect(list).toHaveLength(17)
-  expect(list).not.toContain('t-read')
-  expect(profileFor(decision(['read']), cfg({ agentsTarget: ['general'] }))).toBeUndefined()
-})
-
-test('agentsTarget explore drops the profiles with edit', () => {
-  const config = cfg({ agentsTarget: ['explore'] })
-  expect(names({ agentsTarget: ['explore'] })).toHaveLength(17)
-  expect(profileFor(decision(['read', 'edit']), config)).toBeUndefined()
-  expect(profileFor(decision(['read', 'web']), config)).toBe('jev-orchestrator:t-read-web')
-})
-
-test('toolsAllow removes patterns outside the allow and dedupes the result', () => {
-  const list = buildProfiles(cfg({ toolsAllow: ['Read', 'Grep', 'Glob', 'Bash'] }))
-  expect(list.map((s) => s.name)).toEqual(['t-read', 't-read-shell', 'fallback'])
-  expect(list[1].tools).toEqual(['Read', 'Grep', 'Glob', 'Bash'])
-})
-
-test('a deduplicated combination resolves to the spec that kept its tools', () => {
-  const config = cfg({ toolsAllow: ['Read', 'Grep', 'Glob'] })
-  expect(profileFor(decision(['read', 'edit', 'web']), config)).toBe('jev-orchestrator:t-read')
-})
-
-test('toolsAllow narrows a wildcard to the allowed tool', () => {
-  const config = cfg({ toolsAllow: ['Read', 'mcp__context7__query-docs'] })
-  const spec = buildProfiles(config).find((s) => s.name === 't-read-docs')!
-  expect(spec.tools).toEqual(['Read', 'mcp__context7__query-docs'])
-})
-
-test('toolsDeny goes to disallowedTools', () => {
-  for (const spec of buildProfiles(cfg({ toolsDeny: ['Bash'] }))) expect(spec.disallowedTools).toEqual(['Bash'])
-  expect(buildProfiles(cfg())[0].disallowedTools).toBeUndefined()
-})
-
-test('forced tools use the forced spec', () => {
-  const config = cfg({ forceTools: ['Read', 'Bash'] })
-  const forced = buildProfiles(config).find((s) => s.name === 'forced')!
-  expect(forced.tools).toEqual(['Read', 'Bash'])
-  expect(profileFor(decision(['read'], { forcedTools: ['Read', 'Bash'] }), config)).toBe('jev-orchestrator:forced')
-})
-
-test('skip has no profile; fallback has every group', () => {
-  expect(profileFor({ skip: 'x' }, cfg())).toBeUndefined()
+test('fallback has every group', () => {
   expect(FALLBACK_PROFILE).toBe('jev-orchestrator:fallback')
-  expect(buildProfiles(cfg()).at(-1)!.tools).toContain('mcp__claude-in-chrome__*')
+  expect(buildProfiles().at(-1)!.tools).toContain('mcp__claude-in-chrome__*')
 })
 
 test('session.start registers every spec; a failing one is a toast, not a crash', async ($, on) => {

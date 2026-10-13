@@ -39,13 +39,22 @@ function setup(env: Record<string, string>, res: () => Promise<unknown> | unknow
 test('success: posts body and bearer header, returns answers', async () => {
   const { run, calls } = setup({ TYPESAFE_API_KEY: KEY }, () => ({ status: 200, text: JSON.stringify(good) }))
   expect((await run()).ok).toEqual(good.answers)
-  expect(calls[0].url).toBe(config.jevEndpoint)
+  expect(calls[0].url).toBe('https://api.typesafe.ai/v1/systemone')
   expect(calls[0].init?.method).toBe('POST')
   expect(calls[0].init?.headers?.Authorization).toBe(`Bearer ${KEY}`)
   const body = JSON.parse(calls[0].init?.body ?? '')
   expect(body.model).toBe('jev-latest')
   expect(body.state).toEqual(task)
   expect(Object.keys(body.questions).length).toBe(7)
+})
+
+test('OpenRouter: the configured endpoint gets the same body and the option key', async () => {
+  const cfg = loadConfig({ jevEndpoint: 'https://openrouter.ai/api/v1/systemone', typesafeApiKey: 'fake-openrouter-key' }).config
+  const { run, calls } = setup({}, () => ({ status: 200, text: JSON.stringify(good) }), cfg)
+  expect((await run()).ok).toEqual(good.answers)
+  expect(calls[0].url).toBe('https://openrouter.ai/api/v1/systemone')
+  expect(calls[0].init?.headers?.Authorization).toBe('Bearer fake-openrouter-key')
+  expect(JSON.parse(calls[0].init?.body ?? '').model).toBe('jev-latest')
 })
 
 test('JEV_API_KEY works as fallback', async () => {
@@ -81,7 +90,7 @@ test('missing key', async () => {
   expect(calls.length).toBe(0)
 })
 
-test('timeout when fetch outlasts jevTimeoutMs', async () => {
+test('timeout when fetch outlasts JEV_TIMEOUT_MS', async () => {
   const s = setup({ TYPESAFE_API_KEY: KEY }, () => new Promise(() => {}))
   const p = s.run()
   await Promise.resolve(); await Promise.resolve()

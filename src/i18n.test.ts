@@ -36,6 +36,4 @@ test('a config warning is translated where it is shown', () => {
   const { warnings } = loadConfig({ mode: 'turbo' })
   expect(formatWarning(STRINGS.en, warnings[0])).toBe('JEV: mode=turbo invalid: using auto')
   expect(formatWarning(STRINGS['pt-BR'], warnings[0])).toBe('JEV: mode=turbo inválido: usando auto')
-  const out = loadConfig({ forceEffort: 'max', effortsSonnet: ['low'], effortsHaiku: [], effortsOpus: [] }).warnings[0]
-  expect(formatWarning(STRINGS['pt-BR'], out)).toContain('fora de efforts*')
 })

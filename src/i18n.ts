@@ -17,11 +17,6 @@ export type Warning = { code: keyof typeof STRINGS.en.warn; args: string[] }
 export const warning = (code: Warning['code'], ...args: string[]): Warning => ({ code, args })
 
 type Mode = 'auto' | 'off' | 'explicit'
-const SPACES = {
-  en: { models: 'enabled models', efforts: 'efforts*', agentsTarget: 'agentsTarget' },
-  'pt-BR': { models: 'modelos habilitados', efforts: 'efforts*', agentsTarget: 'agentsTarget' },
-}
-
 export const STRINGS = {
   en: {
     fallback: 'fallback',
@@ -40,20 +35,14 @@ export const STRINGS = {
     toastMissingKey:
       'JEV: key missing, using the fallback; set the key in /plugin → Installed → jev-orchestrator → Configure options, or in TYPESAFE_API_KEY',
     toastLog: 'JEV: failed to write the decision log',
+    // Status line label of the effort JEV picked for the user's own prompt (mainEffort).
+    mainRoute: 'prompt',
     toastVerifierProfile: (profile: string) => `JEV: verifier not started: profile ${profile} missing`,
-    toastVerifierMax: 'JEV: verifier not started: maxAgents',
+    toastVerifierMax: 'JEV: verifier not started: agent limit reached',
     toastVerifierDenied: (deny: string) => `JEV: verifier refused: ${deny}`,
     toastVerifierFailed: (msg: string) => `JEV: verifier failed: ${msg}`,
     warn: {
       invalid: (f: string, v: string, fb: string) => `${f}=${v} invalid: using ${fb}`,
-      invalidInt: (f: string, v: string, range: string, fb: string) => `${f}=${v} invalid (integer ${range}): using ${fb}`,
-      invalidNumber: (f: string, v: string, fb: string) => `${f}=${v} invalid (number >= 0): using ${fb}`,
-      invalidPrice: (f: string, v: string) => `${f}=${v} invalid (input,output,cacheRead,cacheWrite in US$/MTok): using the default`,
-      unknownItem: (f: string, item: string) => `${f}: unknown value "${item}" dropped`,
-      outOfSpace: (f: string, v: string, space: string) => `${f}=${v} outside ${SPACES.en[space as keyof typeof SPACES.en]}: ignored, JEV decides`,
-      deniedTools: (tools: string) => `forceTools contains tools in toolsDeny (removed): ${tools}`,
-      noModels: () => 'no model enabled (all efforts* lists empty): mode=off',
-      noTarget: () => 'agentsTarget empty: mode=off',
     },
   },
   'pt-BR': {
@@ -73,20 +62,13 @@ export const STRINGS = {
     toastMissingKey:
       'JEV: chave ausente, usando o fallback; defina a chave em /plugin → Installed → jev-orchestrator → Configure options, ou em TYPESAFE_API_KEY',
     toastLog: 'JEV: falha ao gravar o log de decisões',
+    mainRoute: 'prompt',
     toastVerifierProfile: (profile: string) => `JEV: verificador não disparado: perfil ${profile} ausente`,
-    toastVerifierMax: 'JEV: verificador não disparado: maxAgents',
+    toastVerifierMax: 'JEV: verificador não disparado: limite de agentes atingido',
     toastVerifierDenied: (deny: string) => `JEV: verificador recusado: ${deny}`,
     toastVerifierFailed: (msg: string) => `JEV: verificador falhou: ${msg}`,
     warn: {
       invalid: (f: string, v: string, fb: string) => `${f}=${v} inválido: usando ${fb}`,
-      invalidInt: (f: string, v: string, range: string, fb: string) => `${f}=${v} inválido (inteiro ${range}): usando ${fb}`,
-      invalidNumber: (f: string, v: string, fb: string) => `${f}=${v} inválido (número >= 0): usando ${fb}`,
-      invalidPrice: (f: string, v: string) => `${f}=${v} inválido (input,output,cacheRead,cacheWrite em US$/MTok): usando o default`,
-      unknownItem: (f: string, item: string) => `${f}: valor desconhecido "${item}" descartado`,
-      outOfSpace: (f: string, v: string, space: string) => `${f}=${v} fora de ${SPACES['pt-BR'][space as keyof typeof SPACES.en]}: ignorado, o JEV decide`,
-      deniedTools: (tools: string) => `forceTools contém tools em toolsDeny (removidas): ${tools}`,
-      noModels: () => 'nenhum modelo habilitado (todas as listas efforts* vazias): mode=off',
-      noTarget: () => 'agentsTarget vazio: mode=off',
     },
   },
 } satisfies Record<Lang, unknown>

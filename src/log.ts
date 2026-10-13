@@ -18,7 +18,7 @@ export type LogIo = {
 export type LogEntry = {
   tool_use_id: string
   description: string
-  outcome: 'routed' | 'fallback' | 'skip' | 'verifier'
+  outcome: 'routed' | 'fallback' | 'skip' | 'verifier' | 'main'
   models: string[]
   effort?: string
   profile?: string

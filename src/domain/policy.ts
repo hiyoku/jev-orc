@@ -2,16 +2,13 @@ import { EFFORTS, MODELS, type Config, type Effort, type Model, type Profile } f
 import type { JevAnswers } from '../jev/answers'
 import type { ToolGroup } from '../tools/groups'
 
-export type Decision =
-  | {
-      models: Model[]
-      effort: Effort
-      toolGroups: ToolGroup[]
-      forcedTools?: string[]
-      profile: Profile
-      reasons: string[]
-    }
-  | { skip: string }
+export type Decision = {
+  models: Model[]
+  effort: Effort
+  toolGroups: ToolGroup[]
+  profile: Profile
+  reasons: string[]
+}
 
 // ponytail: cortes não calibrados; recalibrar com ≥200 linhas de decisions.jsonl (distribuição de complexity/confidence por modelo escolhido)
 const HAIKU_BELOW = 0.75
@@ -30,7 +27,6 @@ const EFFORT_CUTS: readonly [number, Effort][] = [
   [0.8, 'xhigh'],
 ]
 
-const FORCED = 'forced by config'
 const GROUP_QUESTIONS = [
   ['edits_files', 'edit'],
   ['runs_shell', 'shell'],
@@ -39,44 +35,26 @@ const GROUP_QUESTIONS = [
   ['browser', 'browser'],
 ] as const
 
-export function decide(answers: JevAnswers | undefined, config: Config): Decision {
-  const { force } = config
-  const effortFor = (profile: Profile) => (profile === 'explore' ? force.effortExplore : force.effortGeneral) ?? force.effort
-
-  if (!answers) {
-    const missing = [
-      force.model ? '' : 'model',
-      force.agent ? '' : 'agent',
-      force.agent && effortFor(force.agent) ? '' : 'effort',
-      force.tools ? '' : 'tools',
-    ].filter(Boolean)
-    if (missing.length > 0) return { skip: `sem resposta do JEV e sem force para: ${missing.join(', ')}` }
-  }
-
-  const reasons: string[] = []
-  const toolGroups = answers ? groupsOf(answers) : (['read'] as ToolGroup[])
+export function decide(answers: JevAnswers, config: Config): Decision {
+  const toolGroups = groupsOf(answers)
   const writes = toolGroups.includes('edit')
+  // A writing task never goes to explore.
+  const profile: Profile = writes ? 'general' : 'explore'
+  const model = projectModel(desiredTier(answers), config)
+  const effort = projectEffort(desiredEffort(answers), config.efforts)
+  const reasons = [
+    `profile ${profile}: ${writes ? 'writes' : 'read-only'}`,
+    `model ${model}: complexity ${answers.complexity.score.toFixed(2)}`,
+    `effort ${effort}: deliberation ${answers.deliberation.noul.toFixed(2)}`,
+  ]
 
-  const profile = force.agent ?? projectProfile(writes, config.agentsTarget)
-  if (!profile) return { skip: 'task writes but general is not in agentsTarget' }
-  reasons.push(force.agent ? `profile ${profile}: ${FORCED}` : `profile ${profile}: ${writes ? 'writes' : 'read-only'}`)
-
-  const model = force.model ?? projectModel(desiredTier(answers!), config)
-  reasons.push(force.model ? `model ${model}: ${FORCED}` : `model ${model}: complexity ${answers!.complexity.score.toFixed(2)}`)
-
-  const forcedEffort = effortFor(profile)
-  const effort = forcedEffort ?? projectEffort(desiredEffort(answers!), config.allowed.get(model)!)
-  reasons.push(forcedEffort ? `effort ${effort}: ${FORCED}` : `effort ${effort}: deliberation ${answers!.deliberation.noul.toFixed(2)}`)
-
-  if (force.tools) reasons.push(`tools ${force.tools.join(',')}: ${FORCED}`)
-
-  const verifier = answers && !force.model ? verifierFor(model, answers, config) : undefined
+  const verifier = verifierFor(model, answers, config)
   if (verifier) {
-    const { score, confidence } = answers!.complexity
+    const { score, confidence } = answers.complexity
     reasons.push(`verifier ${verifier}: complexity ${score.toFixed(2)}, confidence ${confidence.toFixed(2)}`)
   }
 
-  return { models: verifier ? [model, verifier] : [model], effort, toolGroups, ...(force.tools && { forcedTools: force.tools }), profile, reasons }
+  return { models: verifier ? [model, verifier] : [model], effort, toolGroups, profile, reasons }
 }
 
 function groupsOf(answers: JevAnswers): ToolGroup[] {
@@ -87,12 +65,6 @@ function groupsOf(answers: JevAnswers): ToolGroup[] {
   return ['read', ...groups]
 }
 
-// A writing task never goes to explore.
-function projectProfile(writes: boolean, target: Profile[]): Profile | undefined {
-  if (writes) return target.includes('general') ? 'general' : undefined
-  return target.includes('explore') ? 'explore' : 'general'
-}
-
 function desiredTier({ complexity, web_research }: JevAnswers): number {
   let tier = complexity.score < HAIKU_BELOW ? 0 : complexity.score < SONNET_BELOW ? 1 : 2
   if (complexity.confidence < LOW_CONFIDENCE) tier = Math.min(tier + 1, MODELS.length - 1)
@@ -100,33 +72,25 @@ function desiredTier({ complexity, web_research }: JevAnswers): number {
   return tier
 }
 
-// Nearest enabled tier above, else nearest below; fallbackOrder only breaks equal-distance ties.
-function projectModel(tier: number, config: Config): Model {
-  const enabled = MODELS.filter((model) => config.allowed.get(model)!.length > 0)
-  const above = enabled.filter((model) => MODELS.indexOf(model) >= tier)
-  const pool = above.length > 0 ? above : enabled
-  const distance = (model: Model) => Math.abs(MODELS.indexOf(model) - tier)
-  const order = (model: Model) => config.fallbackOrder.indexOf(model)
-  return [...pool].sort((a, b) => distance(a) - distance(b) || order(a) - order(b))[0]
-}
+// The wanted tier, capped at maxModel.
+const projectModel = (tier: number, config: Config): Model => MODELS[Math.min(tier, MODELS.indexOf(config.maxModel))]
 
 // The strongest enabled model other than the primary, only when the task justifies a second look.
 function verifierFor(primary: Model, { complexity }: JevAnswers, config: Config): Model | undefined {
   const justified =
     config.multiModel &&
-    config.maxModelsPerTask >= 2 &&
     complexity.score >= SONNET_BELOW &&
     complexity.confidence < VERIFY_CONFIDENCE_BELOW
   if (!justified) return undefined
-  return MODELS.filter((model) => model !== primary && config.allowed.get(model)!.length > 0).pop()
+  return MODELS.slice(0, MODELS.indexOf(config.maxModel) + 1).filter((model) => model !== primary).pop()
 }
 
-function desiredEffort({ deliberation }: JevAnswers): Effort {
+export function desiredEffort({ deliberation }: JevAnswers): Effort {
   return EFFORT_CUTS.find(([limit]) => deliberation.noul < limit)?.[1] ?? 'max'
 }
 
 // Highest allowed effort not above the request; if the request is below all, the lowest allowed.
-function projectEffort(wanted: Effort, allowed: Effort[]): Effort {
+export function projectEffort(wanted: Effort, allowed: Effort[]): Effort {
   const rank = (effort: Effort) => EFFORTS.indexOf(effort)
   const sorted = [...allowed].sort((a, b) => rank(a) - rank(b))
   return sorted.filter((effort) => rank(effort) <= rank(wanted)).pop() ?? sorted[0]

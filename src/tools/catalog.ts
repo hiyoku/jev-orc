@@ -9,6 +9,3 @@ export const GROUP_PATTERNS: Record<ToolGroup, readonly string[]> = {
   docs: ['mcp__context7__*'],
   browser: ['mcp__claude-in-chrome__*'],
 }
-
-export const matches = (pattern: string, name: string) =>
-  pattern.endsWith('*') ? name.startsWith(pattern.slice(0, -1)) : pattern === name
