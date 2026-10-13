@@ -1,14 +1,15 @@
 ---
 name: run
-description: Executes a plan written by /jev-orchestrator:plan - reads docs/NNN_*/prompt.md and spawns one agent per task, wave by wave, each routed by JEV. Use when the user calls /jev-orchestrator:run or asks to "run plan NNN".
+description: Executes a plan written by /jev-orchestrator:plan - reads docs/dev/NNN_*/prompt.md (falling back to docs/NNN_*/prompt.md for older plans) and spawns one agent per task, wave by wave, each routed by JEV. Use when the user calls /jev-orchestrator:run or asks to "run plan NNN".
 argument-hint: <NNN>
 ---
 
 # Run
 
-Plan: $ARGUMENTS (the NNN prefix; the latest folder in `docs/` when empty).
+Plan: $ARGUMENTS (the NNN prefix; the latest numbered folder in `docs/dev/` when empty (then `docs/`)).
 
-1. Read `docs/NNN_*/prompt.md`. Its Execution section is the order.
+1. Read `docs/dev/NNN_*/prompt.md`. If it does not exist, read `docs/NNN_*/prompt.md` (older
+   plans such as 001 and 002). Its Execution section is the order.
 2. For each wave, spawn every task of the wave in the same response, one `Agent` call each:
    - `subagent_type: general-purpose`, **no `model` and no `effort`**: JEV picks them.
    - `description`: `[jev] NN <task>` (the prefix routes it in explicit mode too).

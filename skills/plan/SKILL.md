@@ -1,6 +1,6 @@
 ---
 name: plan
-description: Turns a request into docs/NNN_<ShortDescription>/ with a prompt.md (full prompt, task map, dependencies, parallel waves) and one numbered file per task, cut small enough for cheaper models. Writes only; /jev-orchestrator:run executes it. Use when the user calls /jev-orchestrator:plan or asks to "plan this into tasks".
+description: Turns a request into docs/dev/NNN_<ShortDescription>/ with a prompt.md (full prompt, task map, dependencies, parallel waves) and one numbered file per task, cut small enough for cheaper models. Writes only; /jev-orchestrator:run executes it. Use when the user calls /jev-orchestrator:plan or asks to "plan this into tasks".
 argument-hint: <request>
 ---
 
@@ -21,8 +21,10 @@ needs no plan: say so and stop.
 
 ## 2. Folder
 
-`docs/NNN_<ShortDescriptionInPascalCase>/`, where NNN is the highest numeric prefix in
-`docs/` plus 1, zero-padded to 3 digits (001 when there is none).
+`docs/dev/NNN_<ShortDescriptionInPascalCase>/`, where NNN is the highest numeric prefix in
+`docs/dev/` plus 1, zero-padded to 3 digits (001 when there is none). Entries without a
+numeric prefix (`cost-analysis.md`, `known-limits.md`) are ignored.
+`docs/dev/` is ignored by git: the plan is local and never committed.
 
 ## 3. prompt.md
 
