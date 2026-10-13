@@ -45,7 +45,7 @@ test('a verifier adds cost and tokens but no counterfactual', () => {
 test('status: OFF, ON, ON with the route, and complete', () => {
   expect(formatStatus(EMPTY_SAVINGS, 'off', 'high')).toBe('jev OFF')
   expect(formatStatus(EMPTY_SAVINGS, 'auto', 'high')).toBe('jev ON')
-  expect(formatStatus({ ...EMPTY_SAVINGS, route: 'haiku·low·t-read' }, 'explicit', 0, 'high')).toBe('jev ON · haiku·low·t-read')
+  expect(formatStatus({ ...EMPTY_SAVINGS, route: 'haiku·low·t-read' }, 'explicit', 'high')).toBe('jev ON · haiku·low·t-read')
   const full = { agents: 1, tokens: 42_000, cost: 0.08, estimated: 0.31, jevCalls: 0, parent: 'opus', route: 'haiku·low·t-read' }
   expect(formatStatus(full, 'auto', 'high')).toBe('jev ON · haiku·low·t-read · 42k tok $0.08 · vs opus/high ~$0.31 (-74%)')
 })
