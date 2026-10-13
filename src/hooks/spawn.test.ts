@@ -237,7 +237,7 @@ test('a named subagent that is not a teammate is routed', async ($, on) => {
   expect(w.spawns[0].subagentType).toBe('jev-orchestrator:t-read')
 })
 
-test('a type outside agentsIntercept is preserved', async ($, on) => {
+test('a type outside the scope is preserved', async ($, on) => {
   const w = await world($, on)
   await callAgent($, agent('go', { subagent_type: 'go-code-reviewer' }))
   expect(w.tools[0].effort).toBeUndefined()
@@ -552,4 +552,34 @@ test('mode=off leaves the main prompt\'s effort untouched', { options: { maxEffo
   await $.turn.start({ text: 'commit this', turnId: 'm5' })
   await s.step($, 'm5', 'claude-sonnet-5-5')
   expect(s.efforts).toEqual(['high'])
+})
+
+const ENGINE = { plugin: 'engine', tier: 'core' } as const
+const OTHER = { plugin: 'feature-dev', tier: 'user' } as const
+
+test('builtin scope routes Claude Code\'s own agents and leaves a plugin\'s alone', async ($, on) => {
+  const w = await world($, on)
+  await $.agent.offer({ agent: 'Plan', description: 'Software architect agent', source: 'built-in', provider: ENGINE })
+  await $.agent.offer({ agent: 'feature-dev:code-reviewer', description: 'Reviews code', source: 'plugin', provider: OTHER })
+  await callAgent($, agent('p1', { subagent_type: 'Plan' }))
+  await callAgent($, agent('p2', { subagent_type: 'feature-dev:code-reviewer' }))
+  expect(w.bodies).toHaveLength(1)
+  expect(w.tools[0].effort).toBe('low')
+  expect(w.tools[1].effort).toBeUndefined()
+})
+
+test('builtin scope leaves a .claude/agents agent alone even under a built-in\'s name', async ($, on) => {
+  const w = await world($, on)
+  await $.agent.offer({ agent: 'Explore', description: 'my own explorer', source: 'projectSettings', provider: ENGINE })
+  await callAgent($, agent('x1', { subagent_type: 'Explore' }))
+  expect(w.bodies).toHaveLength(0)
+  expect(w.tools[0].effort).toBeUndefined()
+})
+
+test('scope all routes a .claude/agents agent and a plugin agent too', { options: { agentScope: 'all' } }, async ($, on) => {
+  const w = await world($, on)
+  await callAgent($, agent('c1', { subagent_type: 'go-code-reviewer' }))
+  await callAgent($, agent('c2', { subagent_type: 'feature-dev:code-reviewer' }))
+  expect(w.bodies).toHaveLength(2)
+  expect(w.tools.map((t) => t.effort)).toEqual(['low', 'low'])
 })
