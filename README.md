@@ -16,6 +16,45 @@ Getting started takes two commands. In a Claude Code session:
 
 The second command opens the plugin details, so just pick the scope you like (user, project, or local). Then add your JEV key (next section) and you're set! (^o^)b
 
+## Usage
+
+### How it works
+
+You do not call JEV yourself. Once the plugin is on, every `Agent` spawn (`general-purpose` and `Explore`) goes through JEV first, which reads the task text and picks the model, the effort and the tool profile for that subagent. If JEV is unavailable, the spawn still runs (sonnet · medium). The [Flow](#flow) section has the diagram, and `/jev-orc` turns it on or off.
+
+The plugin also ships two skills that make the most of this: `plan` cuts a request into small tasks, and `run` spawns one subagent per task. Small, mechanical tasks are what JEV sends to the cheapest model (haiku), so the plan is where most of the savings come from.
+
+### Plan
+
+`/jev-orchestrator:plan <request>` turns a request into a folder `docs/dev/NNN_<ShortDescription>/` with:
+
+- `prompt.md`: goal, context, constraints, done criteria, the task table, and the execution waves (which tasks can run in parallel);
+- one file per task (`01_<name>.md`, `02_<name>.md`, ...), each cut small enough for a cheap model, with exact paths, code, and the verification command.
+
+It only writes files; nothing is executed. `docs/dev/` is ignored by git, so the plan stays local.
+
+**Tip: write the request with an AI.** The plan is only as good as its input. Before calling `/jev-orchestrator:plan`, ask any AI assistant (Claude, ChatGPT, ...) to turn your idea into a complete request: goal, which files or areas are involved, what must not change, and how to check that it is done. Paste that text as the argument:
+
+```
+/jev-orchestrator:plan Add a --json flag to the export command. Files: src/cli/export.ts and its test. Keep the default output unchanged. Done when `npm test` passes and `export --json` prints valid JSON.
+```
+
+Read the generated `prompt.md` and the task files before running; editing them is cheap, fixing a wrong run is not.
+
+### Run
+
+`/jev-orchestrator:run <NNN>` executes the plan `docs/dev/NNN_*/` (with no number, the latest one):
+
+1. It reads `prompt.md` and follows the Execution section, wave by wave.
+2. Each task of a wave becomes one subagent, spawned in parallel and routed by JEV (no model or effort is set by hand).
+3. Each agent gets its task file first, what the tasks it depends on delivered, and a short context.
+4. If a task fails, the waves that depend on it stop and you are told; independent waves go on.
+5. At the end you get a report per task (done, failed, or skipped), and the results are checked. Commits only happen when you ask.
+
+```
+/jev-orchestrator:run 001
+```
+
 ## Flow
 
 ```mermaid

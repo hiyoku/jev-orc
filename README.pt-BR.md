@@ -16,6 +16,45 @@ Começar leva só dois comandos. Numa sessão do Claude Code:
 
 O segundo comando abre os detalhes do plugin, é só escolher o escopo que preferir (usuário, projeto ou local). Depois configure sua chave do JEV (próxima seção) e pronto! (^o^)b
 
+## Uso
+
+### Como funciona
+
+Você não chama o JEV diretamente. Com o plugin ligado, todo spawn de `Agent` (`general-purpose` e `Explore`) passa antes pelo JEV, que lê o texto da tarefa e escolhe o modelo, o effort e o perfil de tools daquele subagente. Se o JEV estiver indisponível, o spawn roda mesmo assim (sonnet · medium). A seção [Fluxo](#fluxo) tem o diagrama, e o `/jev-orc` liga e desliga.
+
+O plugin traz também duas skills que aproveitam isso ao máximo: `plan` corta um pedido em tarefas pequenas e `run` dispara um subagente por tarefa. Tarefas pequenas e mecânicas são as que o JEV manda para o modelo mais barato (haiku), então é no plano que está a maior parte da economia.
+
+### Plan
+
+`/jev-orchestrator:plan <pedido>` transforma um pedido numa pasta `docs/dev/NNN_<DescricaoCurta>/` com:
+
+- `prompt.md`: objetivo, contexto, restrições, critérios de pronto, a tabela de tarefas e as ondas de execução (quais tarefas rodam em paralelo);
+- um arquivo por tarefa (`01_<nome>.md`, `02_<nome>.md`, ...), cada uma pequena o bastante para um modelo barato, com caminhos exatos, código e o comando de verificação.
+
+Ele só escreve arquivos; nada é executado. `docs/dev/` é ignorado pelo git, então o plano fica local.
+
+**Dica: escreva o pedido com uma IA.** O plano é tão bom quanto a entrada. Antes de chamar `/jev-orchestrator:plan`, peça a qualquer assistente de IA (Claude, ChatGPT, ...) para transformar sua ideia num pedido completo: objetivo, quais arquivos ou áreas estão envolvidos, o que não pode mudar e como conferir que ficou pronto. Cole esse texto como argumento:
+
+```
+/jev-orchestrator:plan Adicionar a flag --json ao comando export. Arquivos: src/cli/export.ts e seu teste. A saída padrão não muda. Pronto quando `npm test` passar e `export --json` imprimir JSON válido.
+```
+
+Leia o `prompt.md` e as tarefas geradas antes de rodar; editar é barato, consertar uma execução errada não é.
+
+### Run
+
+`/jev-orchestrator:run <NNN>` executa o plano `docs/dev/NNN_*/` (sem número, o mais recente):
+
+1. Lê o `prompt.md` e segue a seção Execution, onda por onda.
+2. Cada tarefa de uma onda vira um subagente, disparado em paralelo e roteado pelo JEV (nenhum modelo ou effort é definido à mão).
+3. Cada agente recebe primeiro o arquivo da sua tarefa, o que as tarefas das quais depende entregaram e um contexto curto.
+4. Se uma tarefa falha, as ondas que dependem dela param e você é avisado; ondas independentes continuam.
+5. No fim você recebe um relatório por tarefa (feita, falhou ou pulada) e os resultados são conferidos. Commits só acontecem quando você pedir.
+
+```
+/jev-orchestrator:run 001
+```
+
 ## Fluxo
 
 ```mermaid
