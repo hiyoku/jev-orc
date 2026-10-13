@@ -11,6 +11,8 @@ Ajuste por `/config` (linha `jev-orchestrator.<campo>`) ou `pluginConfigs["jev-o
 |---|---|---|---|---|
 | `language` | string | `auto` | `auto`, `en`, `pt-BR` | idioma das mensagens do plugin; auto: segue o idioma do Claude Code (ou o locale) e cai para `en` |
 | `mode` | string | `auto` | `auto`, `off`, `explicit` | auto: o JEV decide; off: desligado; explicit: só `[jev]`; também muda com `/jev-orc` |
+| `agentScope` | string | `builtin` | `builtin`, `all` | quais agentes o roteamento toca. builtin: os do próprio Claude Code (`general-purpose`, `Explore`, `Plan`, `claude`, `claude-code-guide`, `statusline-setup`); all: esses, os seus `.claude/agents` e os agentes de plugins. Só `general-purpose`, `Explore` e `claude` podem trocar o tipo por um perfil de tools; todo outro agente mantém o próprio tipo, prompt e tools e recebe só o modelo e o effort |
+| `agentHints` | string | — | pares `nome=texto` separados por `\|` | texto curto que o JEV lê ao lado do nome do agente, ex.: `go-code-reviewer=revisa código Go\|Plan=planeja, nunca edita`; sem dica, o JEV lê a descrição do próprio agente, dada pelo Claude Code. Todo texto é cortado em 120 caracteres |
 | `maxModel` | string | `opus` | `haiku`, `sonnet`, `opus` | o modelo mais forte que o JEV pode escolher para um subagente |
 | `maxEffort` | string | `xhigh` | `low`..`max` | o maior effort que o JEV pode escolher, para subagentes e (`mainEffort`) os seus prompts |
 | `mainEffort` | boolean | `false` | | o JEV define o effort dos seus próprios prompts; o modelo da sessão fica |
@@ -27,7 +29,6 @@ Deixaram de ser opções; se um dia precisar, mude em `src/config.ts`.
 
 | Valor | Fixo em |
 |---|---|
-| Tipos de agent interceptados | `general-purpose`, `Explore` |
 | Agents roteados ativos | no máximo 8; acima disso, fallback |
 | Consultas simultâneas ao JEV | 4 |
 | Timeout do JEV | 8000 ms (o hook tem 10 s) |
