@@ -1,6 +1,6 @@
 import { update, type AgentSpawnResult, type EngineInterface, type On } from 'claude-code'
 import { FALLBACK_PROFILE, PROFILE_MATCHER, profileFor } from '../agents/profiles'
-import { intercepts, type Offered } from '../agents/scope'
+import { hintFor, intercepts, type Offered } from '../agents/scope'
 import { EFFORTS, HOOK_BUDGET_MS, JEV_TIMEOUT_MS, MAX_AGENTS, PARALLELISM, PRICES, type Config, type Effort, type LogLevel, type Model } from '../config'
 import { decide, desiredEffort, projectEffort } from '../domain/policy'
 import type { Strings } from '../i18n'
@@ -204,7 +204,8 @@ export function routeAgentSpawns(on: On, config: Config, registered: ReadonlySet
       if (active.size + reserved.size >= MAX_AGENTS) throw new Error('maxAgents')
       reserved.add(e.tool_use_id)
       if (!(await limiter.acquire((ms, signal) => $.clock.sleep(ms, { signal })))) throw new Error('parallelism')
-      const task = { tarefa: e.prompt.slice(0, MAX_TASK_CHARS), contexto: `${type}: ${e.description}` }
+      const hint = hintFor(type, offered.get(type), config.agentHints)
+      const task = { tarefa: e.prompt.slice(0, MAX_TASK_CHARS), contexto: `${type}${hint ? ` (${hint})` : ''}: ${e.description}` }
       asked = task
       try {
         answers = await askJev(jevIo($), task, config)
