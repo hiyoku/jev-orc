@@ -88,6 +88,14 @@ jev ON · haiku·low·t-read · 42k tok $0.08 · vs opus/high ~$0.31 (-74%) — 
 jev OFF — high
 ```
 
+Right after start, before any subagent is routed, it is shorter (that is normal):
+
+```text
+jev ON · prompt·medium — medium
+```
+
+The rest appears as soon as the first subagent is routed. Not seeing it yet? Spawn an `Agent` and watch it grow (^_^)
+
 - `haiku·low·t-read`: last routing (model, effort, profile); on failure, `fallback (<reason>)`.
 - `42k tok $0.08`: tokens and actual cost of the routed agents in the session.
 - `vs opus/high`: the user's model and effort. The effort stays `?` until the MOD sees a main-loop turn.

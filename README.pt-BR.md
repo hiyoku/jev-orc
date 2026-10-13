@@ -89,6 +89,14 @@ jev ON · haiku·low·t-read · 42k tok $0.08 · vs opus/high ~$0.31 (-74%) — 
 jev OFF — high
 ```
 
+Logo ao iniciar, antes de qualquer subagente ser roteado, ela é mais curta (é normal):
+
+```text
+jev ON · prompt·medium — medium
+```
+
+O resto aparece assim que o primeiro subagente for roteado. Ainda não apareceu? Dispare um `Agent` e veja crescer (^_^)
+
 - `haiku·low·t-read`: último roteamento (modelo, effort, perfil); em falha, `fallback (<motivo>)`.
 - `42k tok $0.08`: tokens e custo real dos agents roteados na sessão.
 - `vs opus/high`: modelo e effort do usuário. O effort fica `?` até o MOD ver um turno do loop principal.
