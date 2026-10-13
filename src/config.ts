@@ -53,7 +53,6 @@ export type Price = { input: number; output: number; cacheRead: number; cacheWri
 export type LoadedConfig = { config: Config; warnings: Warning[] }
 
 // Fixed internals: once options, now the values almost nobody changed.
-export const AGENTS_INTERCEPT = ['general-purpose', 'Explore']
 export const MAX_AGENTS = 8
 export const PARALLELISM = 4
 export const JEV_TIMEOUT_MS = 8000
