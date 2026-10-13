@@ -48,7 +48,7 @@ With no `error` and `reasons` such as `maxAgents` or `parallelism`, the agent li
   "permissions": {
     "allow": [
       "Read(~/.claude/jev-orchestrator/**)",
-      "Bash(tail -n * ~/.claude/jev-orchestrator/decisions.jsonl)"
+      "Bash(tail -n 20 ~/.claude/jev-orchestrator/decisions.jsonl)"
     ]
   }
 }
