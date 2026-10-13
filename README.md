@@ -12,7 +12,7 @@ flowchart LR
   A["Agent (tool.call)"] --> B{"mode and type<br/>intercepted?"}
   B -- no --> Z["passes untouched"]
   B -- yes --> C["JEV decides"]
-  C -- failed --> F["fallback<br/>(fallbackModel/Effort)"]
+  C -- failed --> F["fallback<br/>(sonnet · medium)"]
   C --> D["tool.call applies the effort"]
   F --> D
   D --> E["agent.spawn applies<br/>model + tool profile"]
@@ -21,7 +21,7 @@ flowchart LR
 - `tool.call` (Agent) queries JEV and applies the effort.
 - `agent.spawn`, correlated by `tool_use_id`, applies the model and the tool profile.
 - Fail-open: the MOD never denies a spawn. If JEV fails (missing key, timeout, network, `http_*`),
-  the spawn proceeds with `fallbackModel`/`fallbackEffort`/`fallbackAgent` and the reason goes to the log.
+  the spawn proceeds on sonnet · medium (capped by `maxModel`/`maxEffort`) and the reason goes to the log.
 
 ## Installation
 
@@ -37,7 +37,7 @@ The second command opens the plugin details; choose the scope (user, project, or
 ## JEV key
 
 Claude Code offers the plugin options dialog when the plugin is first enabled: fill in
-**TypeSafe / JEV API key** (`typesafeApiKey`). To set or change it later, open `/plugin` →
+**JEV API key (TypeSafe or OpenRouter)** (`typesafeApiKey`). To set or change it later, open `/plugin` →
 **Installed** → `jev-orchestrator` → **Configure options**.
 
 The field is `sensitive`: the key is kept in the system secure storage (Keychain on macOS), not in
@@ -46,11 +46,15 @@ The field is `sensitive`: the key is kept in the system secure storage (Keychain
 log, the status line, toasts, or error messages. With no key at all, every routed spawn falls back
 (with a toast).
 
+**Via OpenRouter:** OpenRouter hosts JEV with the same System One API. Put an OpenRouter key in
+`typesafeApiKey` and set **JEV endpoint** (`jevEndpoint`) to `https://openrouter.ai/api/v1/systemone`.
+The endpoint must be https, since the key goes with every call.
+
 ## Modes
 
 | `mode` | Behavior |
 |---|---|
-| `auto` (default) | JEV decides every spawn of the types in `agentsIntercept` |
+| `auto` (default) | JEV decides every `general-purpose` and `Explore` spawn |
 | `off` | disabled; the status line shows `jev OFF` |
 | `explicit` | only routes spawns whose `description` starts with `[jev]` (the marker is removed) |
 
@@ -74,7 +78,7 @@ All fields are in [docs/configuration.md](docs/configuration.md).
 
 **Note:** on a routed spawn, the MOD overrides the `model` and `effort` passed by hand. To choose
 manually, turn it off (`mode=off`) or use `explicit` and call without the `[jev]` marker.
-You can also pin values with `forceModel`/`forceEffort`.
+`maxModel`/`maxEffort` cap what JEV may pick.
 
 ## Status line
 
@@ -84,15 +88,14 @@ jev OFF
 ```
 
 - `haiku·low·t-read`: last routing (model, effort, profile); on failure, `fallback (<reason>)`.
-- `42k tok $0.08`: tokens and actual cost of the routed agents in the session (plus `jevPricePerCall`
-  per JEV call).
+- `42k tok $0.08`: tokens and actual cost of the routed agents in the session.
 - `vs opus/high`: the user's model and effort. The effort stays `?` until the MOD sees a main-loop turn.
 - `~$0.31 (-74%)`: **estimate**. The counterfactual is the same tokens on the user's model; it does
   not model how much the effort changes the token count. `+x%` means the routed run cost more.
   An estimate below US$ 0.0005 shows as `<$0.001`.
 - `logLevel` does not affect the status line.
 
-Prices come from `priceHaiku/Sonnet/Opus` (US$/MTok).
+Prices are the list prices in `src/config.ts` (US$/MTok).
 
 Plugin messages (toasts, `/jev-orc` replies, and status line words) follow the Claude Code language and fall back to English; the `language` option (`auto`, `en`, `pt-BR`) forces a language.
 
@@ -126,11 +129,20 @@ The log lives outside the repo and is not versioned (`.gitignore`: `decisions*.j
 
 ## Multi-model (optional)
 
-Off by default (`multiModel=false`). When on, with `maxModelsPerTask >= 2`, a verifier reviews the
+Off by default (`multiModel=false`). When on, a verifier reviews the
 answer when the complexity is opus-level and JEV's confidence is below 0.5. The verifier runs in
 the read-only profile `jev-orchestrator:t-read`. During validation, the 0.5 confidence cutoff was
 almost never reached (confidence ≥ 0.69 even for vague requests), so the verifier did not fire.
 Recalibration will be done with log data (user's decision).
+
+## Main prompt effort (optional)
+
+Off by default (`mainEffort=false`). The routing above applies to subagents only; your own prompts
+run on the session model with your effort. When on (and `mode=auto`), each typed prompt goes to
+JEV first and its effort becomes the one JEV picked (deliberation), capped by `maxEffort`. The model never changes: switching it mid-conversation would throw away the
+prompt cache. It costs one JEV call, and up to 8 s of wait, before each prompt. The
+status line shows `prompt·<effort>` and the log an entry with `"outcome":"main"`; without JEV the
+prompt keeps your effort.
 
 ## More
 

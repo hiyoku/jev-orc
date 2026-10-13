@@ -24,20 +24,18 @@ tail -n 20 ~/.claude/jev-orchestrator/decisions.jsonl | jq -c 'select(.outcome==
 | `error` | Cause |
 |---|---|
 | `missing_key` | `typesafeApiKey` option empty (`/plugin` → Installed → jev-orchestrator → Configure options) and `TYPESAFE_API_KEY`/`JEV_API_KEY` missing from the `claude` environment |
-| `timeout` | JEV did not answer within `jevTimeoutMs` (maximum 9000) |
+| `timeout` | JEV did not answer within 8 s |
 | `network` | network failure or wrong `jevEndpoint` |
 | `http_<status>` | HTTP error response (e.g., `http_401`: invalid key) |
 | `bad_payload` | JEV response outside the expected format |
 
-With no `error` and `reasons` such as `maxAgents` or `parallelism`, the agent limit or the JEV queue was reached.
+With no `error` and `reasons` such as `maxAgents` or `parallelism`, the agent limit (8) or the JEV queue (4) was reached.
 
 ## An expected tool does not appear in the profile
 
 - Profiles are registered at `session.start` and restrict tools by name or by MCP server prefix
   (e.g., `mcp__context7__*`). So an MCP tool that connects after the session starts is already
   covered by the profile; the engine is what enforces the restriction.
-- A non-empty `toolsAllow` restricts the profiles to those names; `toolsDeny` wins over `toolsAllow`
-  and becomes `disallowedTools` in all profiles. A config change reloads the module and rebuilds the profiles.
 - The tool only gets in if the group JEV chose includes it and its MCP server is connected.
 
 ## Permissions in headless mode (`claude -p`)
