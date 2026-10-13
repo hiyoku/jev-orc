@@ -20,7 +20,7 @@ test('model ids map to a family, unknown ids to nothing', () => {
 
 test('the counterfactual prices the same tokens at the parent model', () => {
   const usage = { input_tokens: 1e6, output_tokens: 0, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 }
-  const s = addAgent(EMPTY_SAVINGS, usage, 'haiku', 'claude-opus-5-5', prices)
+  const s = addAgent(EMPTY_SAVINGS, usage, 'haiku', 'claude-opus-5-5', prices, 'auto')
   expect(near(s.cost)).toBe(near(0.1))
   expect(near(s.estimated!)).toBe(near(4))
   expect(s.parent).toBe('opus')
@@ -28,15 +28,15 @@ test('the counterfactual prices the same tokens at the parent model', () => {
 })
 
 test('an unknown parent model leaves no estimate, and it stays unknown', () => {
-  const s = addAgent(EMPTY_SAVINGS, MILLION, 'haiku', 'mystery', prices)
+  const s = addAgent(EMPTY_SAVINGS, MILLION, 'haiku', 'mystery', prices, 'auto')
   expect(s.estimated).toBeNull()
-  expect(addAgent(s, MILLION, 'haiku', 'claude-opus-5-5', prices).estimated).toBeNull()
+  expect(addAgent(s, MILLION, 'haiku', 'claude-opus-5-5', prices, 'auto').estimated).toBeNull()
   expect(formatStatus(s, 'auto', 'high')).toBe('jev ON · 4.0M tok $0.73 · vs ?/high')
 })
 
 test('a verifier adds cost and tokens but no counterfactual', () => {
   const usage = { input_tokens: 1e6, output_tokens: 0, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 }
-  const s = addAgent(addAgent(EMPTY_SAVINGS, usage, 'haiku', 'claude-opus-5-5', prices), usage, 'sonnet', undefined, prices, true)
+  const s = addAgent(addAgent(EMPTY_SAVINGS, usage, 'haiku', 'claude-opus-5-5', prices, 'auto'), usage, 'sonnet', undefined, prices, 'auto', true)
   expect(near(s.estimated!)).toBe(near(4))
   expect(near(s.cost)).toBe(near(2.1))
   expect(s.parent).toBe('opus')
@@ -73,4 +73,24 @@ test('abbreviations and rounding', () => {
   expect(usd(0.08)).toBe('$0.08')
   expect(usd(0)).toBe('$0.00')
   expect(usd(0.0004)).toBe('<$0.001')
+})
+
+test('fable is priced and recognised', () => {
+  expect(familyOf('claude-fable-5-1')).toBe('fable')
+  expect(near(costOf(MILLION, prices.fable))).toBe(near(10 + 50 + 0.25 + 12.5))
+})
+
+test('a fixed compare model ignores the parent model', () => {
+  const sonnet = addAgent(EMPTY_SAVINGS, MILLION, 'haiku', 'claude-opus-5-5', prices, 'sonnet')
+  expect(near(sonnet.estimated!)).toBe(near(costOf(MILLION, prices.sonnet)))
+  expect(sonnet.parent).toBe('sonnet')
+  const fable = addAgent(EMPTY_SAVINGS, MILLION, 'haiku', 'mystery', prices, 'fable')
+  expect(near(fable.estimated!)).toBe(near(costOf(MILLION, prices.fable)))
+  expect(fable.parent).toBe('fable')
+})
+
+test('a verifier has no counterfactual under a fixed compare model either', () => {
+  const s = addAgent(EMPTY_SAVINGS, MILLION, 'sonnet', undefined, prices, 'fable', true)
+  expect(s.estimated).toBe(0)
+  expect(s.parent).toBe('?')
 })

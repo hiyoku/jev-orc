@@ -1,5 +1,5 @@
-import type { Mode, Model, Price } from './config'
-import { MODELS } from './config'
+import type { CompareModel, Mode, Model, PricedModel, Price } from './config'
+import { PRICED_MODELS } from './config'
 import type { Savings } from '../types/index'
 
 export type Usage = {
@@ -22,7 +22,7 @@ export const costOf = (usage: Usage, price: Price): number =>
   PER_MTOK
 
 // "claude-opus-5-5" -> opus; anything else is unknown.
-export const familyOf = (modelId: string | undefined): Model | undefined => MODELS.find((model) => modelId?.includes(model))
+export const familyOf = (modelId: string | undefined): PricedModel | undefined => PRICED_MODELS.find((model) => modelId?.includes(model))
 
 // A routed agent: its tokens at the routed model's price against the same tokens at the parent's.
 // ponytail: the counterfactual does not model how much the effort changes the token count; revisit by measuring tokens per effort level in decisions.jsonl and applying a per-level factor if the gap matters.
@@ -32,18 +32,19 @@ export function addAgent(
   usage: Usage,
   routed: Model,
   parentModel: string | undefined,
-  prices: Record<Model, Price>,
+  prices: Record<PricedModel, Price>,
+  compare: CompareModel,
   isVerifier = false,
 ): Savings {
-  const parent = familyOf(parentModel)
-  const counterfactual = isVerifier ? 0 : parent ? costOf(usage, prices[parent]) : null
+  const reference = compare === 'auto' ? familyOf(parentModel) : compare
+  const counterfactual = isVerifier ? 0 : reference ? costOf(usage, prices[reference]) : null
   return {
     ...savings,
     agents: savings.agents + 1,
     tokens: savings.tokens + usage.input_tokens + usage.output_tokens + usage.cache_read_input_tokens + usage.cache_creation_input_tokens,
     cost: savings.cost + costOf(usage, prices[routed]),
     estimated: savings.estimated === null || counterfactual === null ? null : savings.estimated + counterfactual,
-    parent: isVerifier ? savings.parent : (parent ?? '?'),
+    parent: isVerifier ? savings.parent : (reference ?? '?'),
   }
 }
 

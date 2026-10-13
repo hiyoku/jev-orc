@@ -7,6 +7,7 @@ export type Savings = {
   /** The same tokens at the parent model's price; null once a parent model is unknown. */
   estimated: number | null
   jevCalls: number
+  /** The model the routed tokens are priced against: the session's model (`compareModel: auto`) or the chosen one. */
   parent: string
   route: string
 }

@@ -264,7 +264,7 @@ export function routeAgentSpawns(on: On, config: Config, registered: ReadonlySet
     const cost = costed.get(e.agentId)
     costed.delete(e.agentId)
     const usage = e.usage
-    if (cost && usage) await track($, config, efforts, (savings) => addAgent(savings, usage, cost.routed, cost.parentModel, PRICES, cost.isVerifier))
+    if (cost && usage) await track($, config, efforts, (savings) => addAgent(savings, usage, cost.routed, cost.parentModel, PRICES, config.compareModel, cost.isVerifier))
     const pending = pendingVerify.get(e.agentId)
     pendingVerify.delete(e.agentId)
     if (!pending || e.reason !== 'answer') return next(e)

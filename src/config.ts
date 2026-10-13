@@ -55,10 +55,12 @@ export const JEV_TIMEOUT_MS = 8000
 // ponytail: list prices; an option again if someone has negotiated prices
 // Anthropic's published prices for the current family (-5-5), US$ per MTok; cache write is the
 // 5-minute TTL (1.25x input) and haiku's cache read is the documented 0.1x of its input.
-export const PRICES: Record<Model, Price> = {
+// fable: claude-api skill (2026-10); its cacheWrite is derived (1.25x input), not listed there.
+export const PRICES: Record<PricedModel, Price> = {
   haiku: { input: 0.1, output: 0.5, cacheRead: 0.01, cacheWrite: 0.125 },
   sonnet: { input: 2, output: 10, cacheRead: 0.2, cacheWrite: 2.5 },
   opus: { input: 4, output: 20, cacheRead: 0.2, cacheWrite: 5 },
+  fable: { input: 10, output: 50, cacheRead: 0.25, cacheWrite: 12.5 },
 }
 const FALLBACK = { model: 'sonnet', effort: 'medium', agent: 'general-purpose' } as const
 
