@@ -1,0 +1,26 @@
+name: release
+
+# Every push to main (a merged PR) releases the version in .claude-plugin/plugin.json:
+# tag v<version> plus a GitHub release with generated notes. A version already released is skipped.
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tag and release the plugin version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="v$(jq -r .version .claude-plugin/plugin.json)"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "$tag is already released: bump version in .claude-plugin/plugin.json to release again"
+            exit 0
+          fi
+          gh release create "$tag" --target "$GITHUB_SHA" --title "$tag" --generate-notes
