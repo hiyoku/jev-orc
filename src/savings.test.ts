@@ -61,6 +61,8 @@ test('the total across sessions shows from a fresh session on', () => {
   expect(formatStatus(EMPTY_SAVINGS, 'auto', '?', { ...total, estimated: null })).toBe('jev ON · total $1.30')
   expect(formatStatus(EMPTY_SAVINGS, 'auto', '?', EMPTY_SAVINGS)).toBe('jev ON')
   expect(formatStatus(EMPTY_SAVINGS, 'off', '?', total)).toBe('jev OFF')
+  expect(formatStatus(EMPTY_SAVINGS, 'auto', '?', undefined, 'high')).toBe('jev ON — high')
+  expect(formatStatus(EMPTY_SAVINGS, 'off', '?', undefined, 'low')).toBe('jev OFF — low')
 })
 
 test('abbreviations and rounding', () => {

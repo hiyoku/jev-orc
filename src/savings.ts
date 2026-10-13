@@ -61,8 +61,10 @@ function percentVs(real: number, estimated: number | null): string {
 }
 
 // `total`: every session's savings, kept in $.store; shown from the first routed agent ever.
-export function formatStatus(savings: Savings, mode: Mode, userEffort: string, total?: Savings): string {
-  if (mode === 'off') return 'jev OFF'
+// `promptEffort`: the effort the main loop's last request ran with, after a dash; hidden while unknown.
+export function formatStatus(savings: Savings, mode: Mode, userEffort: string, total?: Savings, promptEffort = '?'): string {
+  const effort = promptEffort === '?' ? '' : ` — ${promptEffort}`
+  if (mode === 'off') return `jev OFF${effort}`
   const parts = ['jev ON']
   if (savings.route) parts.push(savings.route)
   if (savings.agents > 0) {
@@ -76,5 +78,5 @@ export function formatStatus(savings: Savings, mode: Mode, userEffort: string, t
     const real = total.cost
     parts.push(`total ${usd(real)}${percentVs(real, total.estimated)}`)
   }
-  return parts.join(' · ')
+  return parts.join(' · ') + effort
 }
