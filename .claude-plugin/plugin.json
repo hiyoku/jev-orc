@@ -27,6 +27,18 @@
         "explicit"
       ]
     },
+    "agentScope": {
+      "type": "string",
+      "title": "Agent scope",
+      "description": "builtin: only Claude Code's own agents; all: those, your .claude/agents and the plugins' agents. Agents other than general-purpose, Explore and claude keep their own type and get only the model and the effort.",
+      "default": "builtin",
+      "options": ["builtin", "all"]
+    },
+    "agentHints": {
+      "type": "string",
+      "title": "Agent hints",
+      "description": "Optional. Short text JEV reads beside an agent's name, as name=text pairs split by |. Empty: the agent's own description, cut to 120 characters."
+    },
     "compareModel": {
       "type": "string",
       "title": "Compare model",
