@@ -1,6 +1,6 @@
 import { update, type AgentSpawnResult, type EngineInterface, type On } from 'claude-code'
 import { FALLBACK_PROFILE, PROFILE_MATCHER, profileFor } from '../agents/profiles'
-import { hintFor, intercepts, type Offered } from '../agents/scope'
+import { hintFor, intercepts, swapsProfile, type Offered } from '../agents/scope'
 import { EFFORTS, HOOK_BUDGET_MS, JEV_TIMEOUT_MS, MAX_AGENTS, PARALLELISM, PRICES, type Config, type Effort, type LogLevel, type Model } from '../config'
 import { decide, desiredEffort, projectEffort } from '../domain/policy'
 import type { Strings } from '../i18n'
@@ -250,7 +250,8 @@ export function routeAgentSpawns(on: On, config: Config, registered: ReadonlySet
     if (!routed || isOwnSpawn(next.origin.plugin, $.plugin.name, e.subagentType) || e.fork || e.isTeammate || e.workflow) return next(e)
 
     let spawned: AgentSpawnResult | undefined
-    if (registered.has(routed.profile)) {
+    // Only a generic agent trades its type for a tool profile; any other keeps its own prompt and tools and gets the model alone.
+    if (swapsProfile(e.subagentType) && registered.has(routed.profile)) {
       try {
         spawned = await next({ ...e, model: routed.model, subagentType: routed.profile })
       } catch {
