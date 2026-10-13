@@ -251,7 +251,7 @@ export function routeAgentSpawns(on: On, config: Config, registered: ReadonlySet
 
     let spawned: AgentSpawnResult | undefined
     // Only a generic agent trades its type for a tool profile; any other keeps its own prompt and tools and gets the model alone.
-    if (swapsProfile(e.subagentType) && registered.has(routed.profile)) {
+    if (swapsProfile(e.subagentType, offered.get(e.subagentType)) && registered.has(routed.profile)) {
       try {
         spawned = await next({ ...e, model: routed.model, subagentType: routed.profile })
       } catch {

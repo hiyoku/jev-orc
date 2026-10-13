@@ -620,3 +620,12 @@ test('claude is generic: it still trades its type for a tool profile', async ($,
   await callAgent($, agent('k3', { subagent_type: 'claude' }))
   expect(w.spawns[0].subagentType).toBe('jev-orchestrator:t-read')
 })
+
+test('scope all: a .claude/agents agent named like a generic one keeps its type', { options: { agentScope: 'all' } }, async ($, on) => {
+  const w = await world($, on)
+  await $.agent.offer({ agent: 'Explore', description: 'my own explorer', source: 'projectSettings', provider: ENGINE })
+  await callAgent($, agent('s1', { subagent_type: 'Explore' }))
+  expect(w.tools[0].effort).toBe('low')
+  expect(w.spawns[0].subagentType).toBe('Explore')
+  expect(w.spawns[0].model).toBe('haiku')
+})

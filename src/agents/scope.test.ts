@@ -25,8 +25,12 @@ test('all intercepts every type', () => {
 })
 
 test('only generic agents may trade their type for a tool profile', () => {
-  for (const type of ['general-purpose', 'Explore', 'claude']) expect(swapsProfile(type)).toBe(true)
-  for (const type of ['Plan', 'claude-code-guide', 'statusline-setup', 'go-code-reviewer']) expect(swapsProfile(type)).toBe(false)
+  for (const type of ['general-purpose', 'Explore', 'claude']) expect(swapsProfile(type, undefined)).toBe(true)
+  for (const type of ['Plan', 'claude-code-guide', 'statusline-setup', 'go-code-reviewer']) expect(swapsProfile(type, undefined)).toBe(false)
+  // a user's agent under a generic name, or a plugin's, keeps its type
+  expect(swapsProfile('Explore', mine)).toBe(false)
+  expect(swapsProfile('claude', plugin)).toBe(false)
+  expect(swapsProfile('Explore', builtin)).toBe(true)
 })
 
 test('parseHints reads name=text pairs and drops the malformed ones', () => {

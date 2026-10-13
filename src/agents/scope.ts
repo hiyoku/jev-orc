@@ -17,7 +17,9 @@ export function intercepts(scope: Scope, type: string, offered: Offered | undefi
   return offered ? offered.source === 'built-in' : BUILTIN_AGENTS.includes(type)
 }
 
-export const swapsProfile = (type: string) => GENERIC_AGENTS.includes(type)
+// A user's agent that shadows a generic name keeps its own type: only a built-in, or a type the host has not offered yet, may be swapped.
+export const swapsProfile = (type: string, offered: Offered | undefined) =>
+  GENERIC_AGENTS.includes(type) && (!offered || offered.source === 'built-in')
 
 // "name=text|name=text" → name → text, each text cut to HINT_MAX; an entry without both parts is dropped.
 export function parseHints(value: unknown): Map<string, string> {
