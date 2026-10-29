@@ -269,6 +269,9 @@ export function routeAgentSpawns(on: On, config: Config, session: Session) {
     return spawned
   })
 
+  // A /clear or a resume starts another conversation: its first prompt follows no answer.
+  on('session.end', (_$, e, next) => ((lastAnswer = undefined), next(e)))
+
   on('turn.complete', async ($, e, next) => {
     if (e.agentId === undefined) {
       if (e.answer.trim()) lastAnswer = e.answer

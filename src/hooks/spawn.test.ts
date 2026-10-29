@@ -580,6 +580,16 @@ test('mainEffort: JEV sets the main turn effort only, until the turn completes',
   expect(w.files.get(`${HOME}/${LOG_PATH}`)).toContain('"outcome":"main"')
 })
 
+test('mainEffort: after a /clear the first prompt goes without the old answer', { options: { mainEffort: true } }, async ($, on) => {
+  stepper(on)
+  on('session.end', (_, e) => ({ sessionId: e.sessionId }))
+  const w = await world($, on)
+  await $.turn.complete({ ...done, turnId: 'c1', answer: 'Found 4 issues. Should I fix them?' })
+  await $.session.end({ reason: 'clear', sessionId: 's1' } as never)
+  await $.turn.start({ text: 'fix the test', turnId: 'c2' })
+  expect(w.bodies[0].state.ultima_resposta_do_agente).toBeUndefined()
+})
+
 test('mainEffort: maxEffort bounds the pick', { options: { mainEffort: true, maxEffort: 'medium' } }, async ($, on) => {
   const s = stepper(on)
   await world($, on, { jev: () => ({ ...READ_ONLY, deliberation: { score: 4, confidence: 1, probabilities: [0, 0, 0, 0, 1] } }) })
