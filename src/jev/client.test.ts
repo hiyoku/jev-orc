@@ -85,6 +85,15 @@ test('a blank key option counts as unset', async () => {
   }
 })
 
+test('blank key variables count as unset, a padded one is trimmed', async () => {
+  const padded = setup({ TYPESAFE_API_KEY: '  \t ', JEV_API_KEY: ` ${KEY} ` }, () => ({ status: 200, text: JSON.stringify(good) }))
+  await padded.run()
+  expect(padded.calls[0].init?.headers?.Authorization).toBe(`Bearer ${KEY}`)
+  const none = setup({ TYPESAFE_API_KEY: ' ', JEV_API_KEY: '' }, () => ({ status: 200, text: '' }))
+  expect((await none.run()).err?.kind).toBe('missing_key')
+  expect(none.calls.length).toBe(0)
+})
+
 test('the key option never reaches the config warnings', () => {
   expect(loadConfig({ typesafeApiKey: 'fake-option-key', mode: 'bogus' }).warnings.join('\n').includes('fake-option-key')).toBe(false)
 })
