@@ -1,6 +1,7 @@
 import type { Register } from 'claude-code'
-import { COMMAND_NAME, changedMessage, deniedMessage, parseJevOrcArgs, statusMessage, usageMessage } from '../src/command'
+import { COMMAND_NAME, changedMessage, deniedMessage, historyMessage, parseJevOrcArgs, statusMessage, usageMessage } from '../src/command'
 import { loadConfig } from '../src/config'
+import { HISTORY_KEY, formatHistory, type HistoryEntry } from '../src/history'
 import { EMPTY_SAVINGS, TOTAL_KEY, formatStatus } from '../src/savings'
 import { createSession, ready, statusView } from '../src/session'
 import { routeAgentSpawns } from '../src/hooks/spawn'
@@ -24,6 +25,10 @@ export const register: Register = (on, options) => {
     const savings = value ?? EMPTY_SAVINGS
     const total = (await $.store.get(TOTAL_KEY).catch(() => undefined)) as Savings | undefined
     if (action.kind === 'usage') return { text: usageMessage(text.s, e.args) }
+    if (action.kind === 'history') {
+      const history = ((await $.store.get(HISTORY_KEY).catch(() => undefined)) as HistoryEntry[] | undefined) ?? []
+      return { text: historyMessage(text.s, formatHistory(history)) }
+    }
     if (action.kind === 'status') {
       return { text: statusMessage(text.s, config.mode, formatStatus(savings, config.mode, view(total))) }
     }

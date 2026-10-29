@@ -11,6 +11,7 @@ test('parse: toggle e argumentos', () => {
   expect(parseJevOrcArgs('OFF', 'auto')).toEqual({ kind: 'set', mode: 'off' })
   expect(parseJevOrcArgs('explicit', 'auto')).toEqual({ kind: 'set', mode: 'explicit' })
   expect(parseJevOrcArgs('status', 'auto')).toEqual({ kind: 'status' })
+  expect(parseJevOrcArgs('history', 'auto')).toEqual({ kind: 'history' })
   expect(parseJevOrcArgs('banana', 'auto')).toEqual({ kind: 'usage' })
 })
 
@@ -71,6 +72,25 @@ test('/jev-orc status e inválido não gravam', async ($, on) => {
   expect((await run($, 'status')).text).toContain('jev ON')
   expect((await run($, 'x')).text).toContain('usage:')
   expect(h.sets).toEqual([])
+})
+
+test('/jev-orc history lists the saved sessions, newest first', async ($, on) => {
+  mock.store(on, {
+    savingsHistory: [
+      { session: 'a', at: 0, tokens: 43_000, cost: 0.12, estimated: 0.45, parent: 'opus' },
+      { session: 'b', at: Date.UTC(2026, 9, 29, 14, 2), tokens: 900, cost: 0.01, estimated: null, parent: '?' },
+    ],
+  })
+  const h = await host($, on)
+  expect((await run($, 'history')).text).toBe(
+    `${en.historyTitle}\n2026-10-29 14:02 · 900 tok $0.01\n1970-01-01 00:00 · 43k tok $0.12 · vs opus ~$0.45 (-73%)`,
+  )
+  expect(h.sets).toEqual([])
+})
+
+test('/jev-orc history without saved sessions says so', async ($, on) => {
+  await host($, on)
+  expect((await run($, 'history')).text).toBe(en.historyEmpty)
 })
 
 test('/jev-orc: deny não muda a status line', async ($, on) => {
