@@ -9,6 +9,7 @@ import { askJev, JevError, type JevErrorKind } from '../jev/client'
 import { createLimiter } from '../jev/limiter'
 import { jevNumbers, logDecision, type LogEntry, type LogIo } from '../log'
 import { addAgent, EMPTY_SAVINGS, formatStatus, TOTAL_KEY } from '../savings'
+import { ready, type Session } from '../session'
 import type { Savings } from '../../types/index'
 
 export const MAX_TASK_CHARS = 4000
@@ -87,9 +88,9 @@ type Verification = { tool_use_id: string; prompt: string; verifier: Model; desc
 
 // tool.call (Agent) decides and applies the effort; agent.spawn, correlated by tool_use_id,
 // applies model and tool profile. Fail-open: never a deny.
-// `registered` holds the profiles whose registration succeeded; any other gets the model only.
-// `text` is read at each use: the language is only known at session.start.
-export function routeAgentSpawns(on: On, config: Config, registered: ReadonlySet<string>, text: { s: Strings }) {
+// `session` holds the routed profiles and the language, filled by `ready` once per load: the hooks that read them await it first.
+export function routeAgentSpawns(on: On, config: Config, session: Session) {
+  const { registered, text } = session
   // What agent.offer said of each type (source and listing line). The host offers agents to the model before it can name one in an Agent call.
   const offered = new Map<string, Offered>()
   const decisions = new Map<string, Routed>()
@@ -98,7 +99,6 @@ export function routeAgentSpawns(on: On, config: Config, registered: ReadonlySet
   // ponytail: a listing built during that window shows the profile; a per-dispatch flag if the host adds one
   const dispatching = new Map<string, number>()
   let warnedMissingKey = false
-  let cleared = false
   const warned = { log: false }
   // ponytail: oldest-first eviction past the cap; a repeat older than 1000 routings is routed again; revisit if decisions.jsonl shows a tool_use_id routed twice
   const routedIds = new Set<string>()
@@ -128,11 +128,7 @@ export function routeAgentSpawns(on: On, config: Config, registered: ReadonlySet
   // mainEffort: one JEV call per typed prompt; the turn waits for it (up to JEV_TIMEOUT_MS).
   // ponytail: no semaphore, the main loop runs one turn at a time
   on('turn.start', async ($, e, next) => {
-    // session.start runs once per process and a reload keeps the line: a load with it off clears it on its first turn.
-    if (!config.showStatus && !cleared) {
-      cleared = true
-      $.ui.status(undefined)
-    }
+    await ready($, session)
     if (!config.mainEffort || config.mode !== 'auto' || !e.text.trim()) return next(e)
     const task = { tarefa: e.text.slice(0, MAX_TASK_CHARS), contexto: MAIN_CONTEXT }
     const entry = { tool_use_id: e.turnId, description: e.text.slice(0, 80), models: [] }
@@ -188,6 +184,7 @@ export function routeAgentSpawns(on: On, config: Config, registered: ReadonlySet
   })
 
   on('tool.call', { tool: 'Agent' }, async ($, e, next) => {
+    await ready($, session)
     const type = e.subagent_type ?? DEFAULT_TYPE
     const marked = MARKER.test(e.description)
     const untouched =
