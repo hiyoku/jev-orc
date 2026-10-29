@@ -7,12 +7,12 @@ import type { Strings } from '../i18n'
 import type { JevAnswers } from '../jev/answers'
 import { askJev, JevError, type JevErrorKind } from '../jev/client'
 import { createLimiter } from '../jev/limiter'
+import { agentState, mainState, type JevState } from '../jev/state'
 import { jevNumbers, logDecision, type LogEntry, type LogIo } from '../log'
 import { addAgent, EMPTY_SAVINGS, formatStatus, TOTAL_KEY } from '../savings'
 import { ready, type Session } from '../session'
 import type { Savings } from '../../types/index'
 
-export const MAX_TASK_CHARS = 4000
 const MARKER = /^\[jev\]\s*/
 const DEFAULT_TYPE = 'general-purpose'
 // What the hook keeps of its budget beyond the queue wait and the JEV timeout.
@@ -50,8 +50,6 @@ async function track($: EngineInterface, config: Config, efforts: Efforts, chang
 type JevIo = Parameters<typeof askJev>[0]
 type HttpInit = Parameters<JevIo['http']['fetch']>[1]
 
-type JevTask = { tarefa: string; contexto: string }
-
 // The host follows $ only within this file, so askJev gets literal calls, not $ itself.
 const jevIo = ($: EngineInterface) =>
   ({
@@ -60,12 +58,9 @@ const jevIo = ($: EngineInterface) =>
     clock: { sleep: (ms: number) => $.clock.sleep(ms) },
   }) as JevIo
 
-// What JEV reads as the context of a main-loop prompt.
-const MAIN_CONTEXT = 'main session prompt: the user talking to the coding agent directly'
-
 // The host follows $ only within this file, so the log gets literal calls, not $ itself.
 // A failure toasts once per session (`warned`) and never reaches the routing.
-function logTo($: EngineInterface, s: Strings, level: LogLevel, warned: { log: boolean }, entry: LogEntry, request?: JevTask) {
+function logTo($: EngineInterface, s: Strings, level: LogLevel, warned: { log: boolean }, entry: LogEntry, request?: JevState) {
   const io: LogIo = {
     home: () => $.env.get('HOME'),
     exists: (path) => $.fs.exists(path),
@@ -130,7 +125,7 @@ export function routeAgentSpawns(on: On, config: Config, session: Session) {
   on('turn.start', async ($, e, next) => {
     await ready($, session)
     if (!config.mainEffort || config.mode !== 'auto' || !e.text.trim()) return next(e)
-    const task = { tarefa: e.text.slice(0, MAX_TASK_CHARS), contexto: MAIN_CONTEXT }
+    const task = mainState(e.text)
     const entry = { tool_use_id: e.turnId, description: e.text.slice(0, 80), models: [] }
     try {
       const answers = await askJev(jevIo($), task, config)
@@ -198,18 +193,18 @@ export function routeAgentSpawns(on: On, config: Config, session: Session) {
       routedIds.has(e.tool_use_id)
     if (untouched) return next(e)
     markRouted(e.tool_use_id)
+    const description = e.description.replace(MARKER, '')
 
     let routed: Routed
     let answers: JevAnswers | undefined
-    let asked: JevTask | undefined
+    let asked: JevState | undefined
     let error: JevErrorKind | undefined
     let fellBack = false
     try {
       if (active.size + reserved.size >= MAX_AGENTS) throw new Error('maxAgents')
       reserved.add(e.tool_use_id)
       if (!(await limiter.acquire((ms, signal) => $.clock.sleep(ms, { signal })))) throw new Error('parallelism')
-      const hint = hintFor(type, offered.get(type), config.agentHints)
-      const task = { tarefa: e.prompt.slice(0, MAX_TASK_CHARS), contexto: `${type}${hint ? ` (${hint})` : ''}: ${e.description}` }
+      const task = agentState(e.prompt, type, hintFor(type, offered.get(type), config.agentHints), description)
       asked = task
       try {
         answers = await askJev(jevIo($), task, config)
@@ -228,8 +223,7 @@ export function routeAgentSpawns(on: On, config: Config, session: Session) {
       routed = fallback(error ?? (err instanceof Error ? err.message : String(err)))
     }
 
-    const description = e.description.replace(MARKER, '')
-    const models = routed.verifier ? [routed.model, routed.verifier] : [routed.model]
+    const models =routed.verifier ? [routed.model, routed.verifier] : [routed.model]
     const jev = answers && jevNumbers(answers)
     logTo($, text.s, config.logLevel, warned, { tool_use_id: e.tool_use_id, description, outcome: fellBack ? 'fallback' : 'routed', models, effort: routed.effort, profile: routed.profile, reasons: routed.reasons, jev, error }, asked)
     const route = fellBack ? `${text.s.fallback} (${routed.reasons[0]})` : `${routed.model}·${routed.effort}·${routed.profile.replace(PROFILE_MATCHER, '')}`

@@ -2,6 +2,7 @@ import type { LogLevel } from './config'
 import type { JevAnswers } from './jev/answers'
 import type { JevErrorKind } from './jev/client'
 import { questions } from './jev/questions'
+import type { JevState } from './jev/state'
 
 // Under HOME: no data directory in the plugin API, and $.store is a key-value JSON, not a file to tail.
 export const LOG_PATH = '.claude/jev-orchestrator/decisions.jsonl'
@@ -27,8 +28,6 @@ export type LogEntry = {
   jev?: Record<string, number>
   error?: JevErrorKind
 }
-
-type JevRequest = { tarefa: string; contexto: string }
 
 const round = (n: number) => Math.round(n * 100) / 100
 
@@ -57,15 +56,22 @@ export function fromJevNumbers(numbers: Record<string, number>): JevAnswers | un
   return out as JevAnswers
 }
 
+// At debug, what JEV read, each long text cut to DEBUG_TASK_CHARS.
+const shortened = ({ ultima_resposta_do_agente: reply, ...request }: JevState): JevState => ({
+  ...request,
+  tarefa: request.tarefa.slice(0, DEBUG_TASK_CHARS),
+  ...(reply ? { ultima_resposta_do_agente: reply.slice(0, DEBUG_TASK_CHARS) } : {}),
+})
+
 // No $ API appends, so a write reads the file and writes it back whole. One queue per module keeps
 // parallel spawns from interleaving or losing lines.
 // ponytail: two sessions writing at once can still lose a line; a file per session if that matters
 let queue: Promise<void> = Promise.resolve()
 
 // Never awaited by the routing: a failure reaches `onError`, never the caller.
-export function logDecision(io: LogIo, level: LogLevel, entry: LogEntry, request: JevRequest | undefined, onError: () => void): void {
+export function logDecision(io: LogIo, level: LogLevel, entry: LogEntry, request: JevState | undefined, onError: () => void): void {
   if (level === 'off') return
-  const debug = level === 'debug' && request ? { jev_request: { tarefa: request.tarefa.slice(0, DEBUG_TASK_CHARS), contexto: request.contexto } } : {}
+  const debug = level === 'debug' && request ? { jev_request: shortened(request) } : {}
   const line = `${JSON.stringify({ ts: new Date().toISOString(), ...entry, ...debug })}\n`
   queue = queue.then(() => append(io, line)).catch(onError)
 }

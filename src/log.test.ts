@@ -1,4 +1,5 @@
 import { expect, test } from 'claude-code/testing'
+import type { JevState } from './jev/state'
 import { LOG_PATH, fromJevNumbers, jevNumbers, logDecision, ROTATE_CHARS, type LogEntry, type LogIo } from './log'
 
 const HOME = '/home/u'
@@ -19,7 +20,7 @@ function memory() {
 }
 
 const entry = (id: string): LogEntry => ({ tool_use_id: id, description: 'read file', outcome: 'routed', models: ['haiku'], effort: 'low', profile: 'jev-orchestrator:t-read', reasons: ['r'] })
-const TASK = { tarefa: 'x'.repeat(500), contexto: 'general-purpose: read file' }
+const TASK: JevState = { tarefa: 'x'.repeat(500), agente: { tipo: 'general-purpose' }, descricao: 'read file' }
 
 test('a well-formed JSONL line per call', async () => {
   const m = memory()
@@ -43,7 +44,14 @@ test('debug adds the JEV request with the task cut to 200 chars', async () => {
   const m = memory()
   logDecision(m.io, 'debug', entry('t1'), TASK, () => {})
   await settle()
-  expect(m.lines()[0].jev_request).toEqual({ tarefa: 'x'.repeat(200), contexto: TASK.contexto })
+  expect(m.lines()[0].jev_request).toEqual({ tarefa: 'x'.repeat(200), agente: { tipo: 'general-purpose' }, descricao: 'read file' })
+})
+
+test('debug cuts the agent\'s last reply to 200 chars too', async () => {
+  const m = memory()
+  logDecision(m.io, 'debug', entry('t1'), { tarefa: 'go on', ultima_resposta_do_agente: 'y'.repeat(500) }, () => {})
+  await settle()
+  expect(m.lines()[0].jev_request).toEqual({ tarefa: 'go on', ultima_resposta_do_agente: 'y'.repeat(200) })
 })
 
 test('10 parallel writes keep 10 whole lines', async () => {

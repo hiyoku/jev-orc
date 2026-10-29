@@ -2,9 +2,10 @@ import { expect, test } from 'claude-code/testing'
 import { loadConfig } from '../config'
 import { askJev, JevError } from './client'
 import { questions } from './questions'
+import type { JevState } from './state'
 
 const config = loadConfig({}).config
-const task = { tarefa: 'rename x', contexto: 'general-purpose: rename' }
+const task: JevState = { tarefa: 'rename x', agente: { tipo: 'general-purpose' }, descricao: 'rename' }
 const KEY = 'sk-secret-123'
 // The API's shape: a score's probabilities keyed by level index.
 const good = {

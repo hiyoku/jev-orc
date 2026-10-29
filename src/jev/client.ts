@@ -2,6 +2,7 @@ import type { CoreEngineInterface } from 'claude-code'
 import { JEV_TIMEOUT_MS, type Config } from '../config'
 import type { JevAnswers } from './answers'
 import { questions } from './questions'
+import type { JevState } from './state'
 
 export type JevErrorKind = 'missing_key' | 'timeout' | 'network' | 'bad_payload' | `http_${number}`
 
@@ -41,7 +42,7 @@ function parse(text: string): JevAnswers {
 
 export async function askJev(
   $: JevDollar,
-  task: { tarefa: string; contexto: string },
+  state: JevState,
   config: Pick<Config, 'apiKey' | 'endpoint'>,
 ): Promise<JevAnswers> {
   const key = config.apiKey || (await $.env.get('TYPESAFE_API_KEY'))?.trim() || (await $.env.get('JEV_API_KEY'))?.trim()
@@ -50,7 +51,7 @@ export async function askJev(
   const req = $.http.fetch(config.endpoint, {
     method: 'POST',
     headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model: 'jev-latest', state: { tarefa: task.tarefa, contexto: task.contexto }, questions }),
+    body: JSON.stringify({ model: 'jev-latest', state, questions }),
   }).catch(() => { throw new JevError('network') })
   const timeout = $.clock.sleep(JEV_TIMEOUT_MS).then(() => { throw new JevError('timeout') })
   const res = await Promise.race([req, timeout])

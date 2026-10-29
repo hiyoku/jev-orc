@@ -1,7 +1,7 @@
 export const questions = {
   complexity: {
     type: 'score',
-    instructions: 'How hard is it for a coding agent to complete `tarefa` correctly, given `contexto`?',
+    instructions: 'How hard is it for a coding agent to complete `tarefa` correctly?',
     criteria: [
       'Mechanical: run a command, read or locate something, rename, or tweak a constant or text; the exact change is already stated.',
       'Localized change in one or two files that follows an existing pattern, with clear acceptance criteria.',

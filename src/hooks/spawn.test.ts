@@ -5,7 +5,8 @@ import { LOG_PATH } from '../log'
 import { MAX_AGENTS, PARALLELISM } from '../config'
 import { STRINGS } from '../i18n'
 import { TOTAL_KEY } from '../savings'
-import { isOwnSpawn, MAX_TASK_CHARS } from './spawn'
+import { isOwnSpawn } from './spawn'
+import { MAX_TASK_CHARS, type JevState } from '../jev/state'
 
 // The world's status line is plain, so the strings below stay as they were; a test's own options win.
 const test: typeof baseTest = ((name: string, a: any, b?: any) =>
@@ -31,7 +32,7 @@ type Agent = {
   tool_use_id: string; description: string; prompt: string; subagent_type?: string; name?: string; team_name?: string
   model?: string; effort?: string
 }
-type JevBody = { state: { tarefa: string; contexto: string } }
+type JevBody = { state: JevState }
 type World = {
   env?: Record<string, string>
   jev?: (body: JevBody) => Promise<unknown> | unknown
@@ -118,7 +119,7 @@ test('happy path: effort at tool.call, model and profile at spawn, by tool_use_i
   await callAgent($, agent('t1', { prompt: 'x'.repeat(MAX_TASK_CHARS + 50) }))
   expect(w.tools[0].effort).toBe('low')
   expect(w.bodies[0].state.tarefa).toHaveLength(MAX_TASK_CHARS)
-  expect(w.bodies[0].state.contexto).toBe('general-purpose: read file')
+  expect(w.bodies[0].state).toMatchObject({ tarefa_cortada: true, agente: { tipo: 'general-purpose' }, descricao: 'read file' })
   expect(w.spawns[0].tool_use_id).toBe('t1')
   expect(w.spawns[0].model).toBe('haiku')
   expect(w.spawns[0].subagentType).toBe('jev-orchestrator:t-read')
@@ -569,7 +570,7 @@ test('mainEffort: JEV sets the main turn effort only, until the turn completes',
   await s.step($, 'm1', 'claude-sonnet-5-5')
   // deliberation level 0 -> low; a subagent's request and a finished turn keep theirs
   expect(s.efforts).toEqual(['low', 'high', 'high'])
-  expect(w.bodies[0].state).toMatchObject({ tarefa: 'commit this' })
+  expect(w.bodies[0].state).toMatchObject({ tarefa: 'commit this', origem: 'the user typing to the coding agent in the main session' })
   expect(w.statuses.at(-1)).toContain('prompt·low')
   // the dash shows the main loop's effort as run, not a subagent's
   expect(w.statuses.at(-1)).toMatch(/ — high$/)
@@ -649,14 +650,20 @@ test('JEV reads the host\'s listing line beside the agent name, cut to 120 chara
   const listing = `Software architect. ${'x'.repeat(200)}`
   await $.agent.offer({ agent: 'Plan', description: listing, source: 'built-in', provider: ENGINE })
   await callAgent($, agent('h1', { subagent_type: 'Plan' }))
-  expect(w.bodies[0].state.contexto).toBe(`Plan (${listing.slice(0, 120)}): read file`)
+  expect(w.bodies[0].state.agente).toEqual({ tipo: 'Plan', dica: listing.slice(0, 120) })
 })
 
 test('agentHints wins over the host\'s listing line', { options: { agentHints: 'Plan=plans, never edits' } }, async ($, on) => {
   const w = await world($, on)
   await $.agent.offer({ agent: 'Plan', description: 'Software architect agent', source: 'built-in', provider: ENGINE })
   await callAgent($, agent('h2', { subagent_type: 'Plan' }))
-  expect(w.bodies[0].state.contexto).toBe('Plan (plans, never edits): read file')
+  expect(w.bodies[0].state.agente).toEqual({ tipo: 'Plan', dica: 'plans, never edits' })
+})
+
+test('JEV reads the description without the [jev] marker', async ($, on) => {
+  const w = await world($, on)
+  await callAgent($, agent('d1', { description: '[jev] read file' }))
+  expect(w.bodies[0].state.descricao).toBe('read file')
 })
 
 test('a routed Plan keeps its type and gets the model and the effort', async ($, on) => {
