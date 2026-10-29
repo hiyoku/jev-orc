@@ -18,13 +18,6 @@ const OPUS_FROM = 0.4
 const WEB_RESEARCH_FLOOR = 0.5
 // ponytail: corte não calibrado — opus com a chance do nível 3 abaixo deste valor ainda está em dúvida, e um verificador revisa; recalibrar pela distribuição de complexity_p3 nas decisões opus de decisions.jsonl (≥200 linhas)
 const VERIFY_BELOW = 0.7
-// ponytail: cortes não calibrados — deliberation noul abaixo de cada limite dá o effort correspondente; acima do último, max; recalibrar pela distribuição de deliberation em decisions.jsonl (≥200 linhas)
-const EFFORT_CUTS: readonly [number, Effort][] = [
-  [0.2, 'low'],
-  [0.4, 'medium'],
-  [0.6, 'high'],
-  [0.8, 'xhigh'],
-]
 
 // ponytail: cortes não calibrados; faltar uma tool custa um agent perdido, sobrar uma custa quase nada → shell/edit mais baixos; recalibrar com o replay (docs/dev/known-limits.md)
 const GROUP_THRESHOLDS = { edit: 0.3, shell: 0.3, web: 0.5, docs: 0.5, browser: 0.5 } as const satisfies Record<
@@ -51,7 +44,7 @@ export function decide(answers: JevAnswers, config: Config): Decision {
   const reasons = [
     `profile ${profile}: ${writes ? 'writes' : 'read-only'}`,
     `model ${model}: complexity p0 ${mechanical.toFixed(2)}, p3 ${open.toFixed(2)}`,
-    `effort ${effort}: deliberation ${answers.deliberation.noul.toFixed(2)}`,
+    `effort ${effort}: deliberation ${answers.deliberation.score.toFixed(2)}`,
   ]
 
   const verifier = verifierFor(model, answers, config)
@@ -87,8 +80,9 @@ function verifierFor(primary: Model, { complexity }: JevAnswers, config: Config)
   return MODELS.slice(0, MODELS.indexOf(config.maxModel) + 1).filter((model) => model !== primary).pop()
 }
 
+// The nearest deliberation level is the effort: level 0 is low, level 4 is max.
 export function desiredEffort({ deliberation }: JevAnswers): Effort {
-  return EFFORT_CUTS.find(([limit]) => deliberation.noul < limit)?.[1] ?? 'max'
+  return EFFORTS[Math.min(Math.max(Math.round(deliberation.score), 0), EFFORTS.length - 1)]
 }
 
 // Highest allowed effort not above the request; if the request is below all, the lowest allowed.

@@ -10,12 +10,16 @@ const KEY = 'sk-secret-123'
 const good = {
   answers: {
     complexity: { score: 0.5, confidence: 0.9, probabilities: { 0: 0.5, 1: 0.5, 2: 0, 3: 0 } },
-    deliberation: { noul: 0.1 }, edits_files: { noul: 0.9 }, runs_shell: { noul: 0 },
+    deliberation: { score: 0, confidence: 1, probabilities: { 0: 1, 1: 0, 2: 0, 3: 0, 4: 0 } }, edits_files: { noul: 0.9 }, runs_shell: { noul: 0 },
     web_research: { noul: 0 }, library_docs: { noul: 0 }, browser: { noul: 0 },
   },
 }
 // What askJev returns for `good`: each score's probabilities as an array, by level.
-const parsed = { ...good.answers, complexity: { score: 0.5, confidence: 0.9, probabilities: [0.5, 0.5, 0, 0] } }
+const parsed = {
+  ...good.answers,
+  complexity: { score: 0.5, confidence: 0.9, probabilities: [0.5, 0.5, 0, 0] },
+  deliberation: { score: 0, confidence: 1, probabilities: [1, 0, 0, 0, 0] },
+}
 
 // Plain fake `$`: the host refuses `$.env/http/clock` calls from modules that the plugin's
 // hooks don't import (it scans for them), so askJev is tested through a structural fake.

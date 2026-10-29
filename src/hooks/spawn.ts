@@ -136,7 +136,7 @@ export function routeAgentSpawns(on: On, config: Config, session: Session) {
       const answers = await askJev(jevIo($), task, config)
       const effort = desiredEffort(answers)
       mainEfforts.set(e.turnId, effort)
-      const reasons = [`effort ${effort}: deliberation ${answers.deliberation.noul.toFixed(2)}`]
+      const reasons = [`effort ${effort}: deliberation ${answers.deliberation.score.toFixed(2)}`]
       logTo($, text.s, config.logLevel, warned, { ...entry, outcome: 'main', effort, reasons, jev: jevNumbers(answers) }, task)
       await track($, config, efforts, (savings) => ({ ...savings, route: `${text.s.mainRoute}·${effort}`, jevCalls: savings.jevCalls + 1 }))
     } catch (err) {

@@ -9,7 +9,7 @@ const MULTI = { multiModel: true }
 // complexity as the chance of each level: 0 mechanical, 1 localized, 2 multi-file, 3 open design.
 const answers = (probabilities: number[]): JevAnswers => ({
   complexity: { score: probabilities.reduce((sum, p, level) => sum + p * level, 0), confidence: 0.9, probabilities },
-  deliberation: { noul: 0.1 },
+  deliberation: { score: 0, confidence: 1, probabilities: [1, 0, 0, 0, 0] },
   edits_files: { noul: 0 }, runs_shell: { noul: 0 }, web_research: { noul: 0 },
   library_docs: { noul: 0 }, browser: { noul: 0 },
 })

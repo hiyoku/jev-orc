@@ -20,7 +20,7 @@ const START = { cwd: '/work', surface: null, isInteractive: false }
 // Read-only, low complexity, low deliberation: haiku + low + t-read.
 const READ_ONLY = {
   complexity: { score: 0.2, confidence: 0.9, probabilities: [0.8, 0.2, 0, 0] },
-  deliberation: { noul: 0.1 },
+  deliberation: { score: 0, confidence: 1, probabilities: [1, 0, 0, 0, 0] },
   edits_files: { noul: 0 }, runs_shell: { noul: 0 }, web_research: { noul: 0 },
   library_docs: { noul: 0 }, browser: { noul: 0 },
 }
@@ -375,7 +375,7 @@ test('one log line per routed spawn, and the status names the routing', async ($
   expect(lines).toHaveLength(1)
   expect(lines[0]).toMatchObject({
     tool_use_id: 'l1', description: 'read file', outcome: 'routed', models: ['haiku'], effort: 'low',
-    profile: 'jev-orchestrator:t-read', jev: { complexity: 0.2, complexity_confidence: 0.9, deliberation: 0.1 },
+    profile: 'jev-orchestrator:t-read', jev: { complexity: 0.2, complexity_confidence: 0.9, deliberation: 0 },
   })
   expect(w.statuses.at(-1)).toBe('jev ON · haiku·low·t-read')
 })
@@ -567,7 +567,7 @@ test('mainEffort: JEV sets the main turn effort only, until the turn completes',
   await s.step($, 'm1', 'claude-sonnet-5-5', 'a-sub')
   await $.turn.complete({ ...done, turnId: 'm1' })
   await s.step($, 'm1', 'claude-sonnet-5-5')
-  // deliberation 0.1 -> low; a subagent's request and a finished turn keep theirs
+  // deliberation level 0 -> low; a subagent's request and a finished turn keep theirs
   expect(s.efforts).toEqual(['low', 'high', 'high'])
   expect(w.bodies[0].state).toMatchObject({ tarefa: 'commit this' })
   expect(w.statuses.at(-1)).toContain('prompt·low')
@@ -579,10 +579,10 @@ test('mainEffort: JEV sets the main turn effort only, until the turn completes',
 
 test('mainEffort: maxEffort bounds the pick', { options: { mainEffort: true, maxEffort: 'medium' } }, async ($, on) => {
   const s = stepper(on)
-  await world($, on, { jev: () => ({ ...READ_ONLY, deliberation: { noul: 0.9 } }) })
+  await world($, on, { jev: () => ({ ...READ_ONLY, deliberation: { score: 4, confidence: 1, probabilities: [0, 0, 0, 0, 1] } }) })
   await $.turn.start({ text: 'design the cache', turnId: 'm2' })
   await s.step($, 'm2', 'claude-opus-5-5')
-  // deliberation 0.9 asks for max: capped at medium
+  // deliberation level 4 asks for max: capped at medium
   expect(s.efforts).toEqual(['medium'])
 })
 
