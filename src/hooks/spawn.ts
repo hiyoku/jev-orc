@@ -73,15 +73,6 @@ function logTo($: EngineInterface, { text, version }: Session, level: LogLevel, 
   })
 }
 
-// The agent's last reply, so JEV sees what a short follow-up ("yes", "explain more") refers to.
-async function lastReply($: EngineInterface): Promise<string | undefined> {
-  try {
-    return (await $.session.messages()).findLast((m) => m.role === 'assistant' && m.text.trim() !== '')?.text
-  } catch {
-    return undefined
-  }
-}
-
 // A spawn this plugin caused, or one already on a profile of it, is never routed again.
 export const isOwnSpawn = (originPlugin: string, self: string, type: string) =>
   originPlugin === self || PROFILE_MATCHER.test(type)
@@ -118,6 +109,9 @@ export function routeAgentSpawns(on: On, config: Config, session: Session) {
   const efforts: Efforts = { user: '?', prompt: '?' }
   // mainEffort: JEV's effort for each main-loop turn, by turnId, until the turn completes.
   const mainEfforts = new Map<string, Effort>()
+  // The main loop's last answer, so JEV sees what a short follow-up ("yes", "explain more") refers to.
+  // ponytail: held per load; the first prompt after a reload goes without it
+  let lastAnswer: string | undefined
   // Waiting on the queue is the hook's own time (no $ call is in flight), and the JEV timeout is
   // a $.clock.sleep, paid from the budget too: the wait gets what is left of the budget after them.
   const maxQueueWaitMs = HOOK_BUDGET_MS - JEV_TIMEOUT_MS - QUEUE_MARGIN_MS
@@ -133,7 +127,7 @@ export function routeAgentSpawns(on: On, config: Config, session: Session) {
   on('turn.start', async ($, e, next) => {
     await ready($, session)
     if (!config.mainEffort || config.mode !== 'auto' || !e.text.trim()) return next(e)
-    const task = mainState(e.text, await lastReply($))
+    const task = mainState(e.text, lastAnswer)
     const entry = { tool_use_id: e.turnId, description: e.text.slice(0, 80), models: [] }
     try {
       const { answers, model } = await askJev(jevIo($), task, config)
@@ -276,7 +270,11 @@ export function routeAgentSpawns(on: On, config: Config, session: Session) {
   })
 
   on('turn.complete', async ($, e, next) => {
-    if (e.agentId === undefined) return (mainEfforts.delete(e.turnId), next(e))
+    if (e.agentId === undefined) {
+      if (e.answer.trim()) lastAnswer = e.answer
+      mainEfforts.delete(e.turnId)
+      return next(e)
+    }
     // ponytail: a background agent woken again runs more turns; it is freed and costed at the first turn.complete only; revisit if the host exposes an agent-ended event
     active.delete(e.agentId)
     const cost = costed.get(e.agentId)

@@ -539,10 +539,9 @@ test('a turn without a routed agent changes nothing', async ($, on) => {
 })
 
 // mainEffort: the test's turn.step hook stands for the API and records the effort each request asked.
-function stepper(on: On, messages: unknown[] = []) {
+function stepper(on: On) {
   const efforts: unknown[] = []
   on('turn.start', (_, e) => ({ turnId: e.turnId }))
-  on('session.messages', () => ({ value: messages as never }))
   on('turn.step', async function* (_, e) {
     efforts.push(e.effort)
     return { turnId: e.turnId, index: e.index, answer: '', toolUses: [], stopReason: 'end_turn', usage: null }
@@ -590,14 +589,13 @@ test('mainEffort: maxEffort bounds the pick', { options: { mainEffort: true, max
   expect(s.efforts).toEqual(['medium'])
 })
 
-test('mainEffort: JEV reads the agent\'s last reply beside a short prompt', { options: { mainEffort: true } }, async ($, on) => {
-  stepper(on, [
-    { role: 'user', text: 'review the client', toolUses: [] },
-    { role: 'assistant', text: 'Found 4 issues. Should I fix them?', toolUses: [] },
-    { role: 'assistant', text: '', toolUses: [] },
-  ])
+test('mainEffort: JEV reads the main loop\'s last answer beside a short prompt', { options: { mainEffort: true } }, async ($, on) => {
+  stepper(on)
   const w = await world($, on)
-  await $.turn.start({ text: 'yes', turnId: 'm6' })
+  await $.turn.complete({ ...done, turnId: 'm6', answer: 'Found 4 issues. Should I fix them?' })
+  await $.turn.complete({ ...done, turnId: 'm7', answer: ' ' })
+  await $.turn.complete({ ...done, agentId: 'stranger', answer: 'a subagent answer' })
+  await $.turn.start({ text: 'yes', turnId: 'm8' })
   expect(w.bodies[0].state).toMatchObject({ tarefa: 'yes', ultima_resposta_do_agente: 'Found 4 issues. Should I fix them?' })
 })
 
