@@ -12,6 +12,14 @@ export type Savings = {
   route: string
 }
 
+/** Where the API key comes from, for other plugins to show; the key itself never leaves the plugin. */
+export type KeyStatus = {
+  source: 'option' | 'TYPESAFE_API_KEY' | 'JEV_API_KEY' | 'none'
+  env: { TYPESAFE_API_KEY: boolean; JEV_API_KEY: boolean }
+  /** The endpoint's host, not its path. */
+  endpoint: string
+}
+
 declare module 'claude-code' {
   interface PluginState {
     'jev-orchestrator': {
@@ -20,6 +28,7 @@ declare module 'claude-code' {
       mode: 'auto' | 'off' | 'explicit'
       /** Every session's savings summed: a copy of the $.store total other plugins can read. */
       total: Savings
+      key: KeyStatus
     }
   }
 }

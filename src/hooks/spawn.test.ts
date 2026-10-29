@@ -442,6 +442,13 @@ test('showStatus false: no status line, the mode and the total still reach $.sta
   expect(w.state.get('total')?.value).toMatchObject({ agents: 1, cost: 0.005 })
 })
 
+test('the key status names its source and never holds the key', async ($, on) => {
+  const w = await world($, on)
+  const status = w.state.get('key')?.value
+  expect(status).toEqual({ source: 'TYPESAFE_API_KEY', env: { TYPESAFE_API_KEY: true, JEV_API_KEY: false }, endpoint: 'api.typesafe.ai' })
+  expect(JSON.stringify(status)).not.toContain(KEY)
+})
+
 test('statusStyle nerd: the last status carries the icons', { options: { statusStyle: 'nerd' } }, async ($, on) => {
   const w = await world($, on)
   await callAgent($, agent('n1'))
