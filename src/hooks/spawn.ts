@@ -9,6 +9,7 @@ import { createLimiter } from '../jev/limiter'
 import { agentState, mainState, type JevState } from '../jev/state'
 import { jevNumbers, logDecision, type LogEntry, type LogIo } from '../log'
 import { addAgent, EMPTY_SAVINGS, formatStatus, TOTAL_KEY } from '../savings'
+import { HISTORY_KEY, recordSession, type HistoryEntry } from '../history'
 import { ready, type Session } from '../session'
 import type { Savings } from '../../types/index'
 
@@ -40,6 +41,8 @@ async function track($: EngineInterface, config: Config, efforts: Efforts, chang
     try {
       total = change(((await $.store.get(TOTAL_KEY)) as Savings | undefined) ?? EMPTY_SAVINGS)
       await $.store.set(TOTAL_KEY, total)
+      const history = ((await $.store.get(HISTORY_KEY)) as HistoryEntry[] | undefined) ?? []
+      await $.store.set(HISTORY_KEY, recordSession(history, await $.session.id(), await $.clock.now(), savings))
       await $.state.set(TOTAL, total)
     } catch {} // no store: the session's line alone
     if (config.showStatus) $.ui.status(formatStatus(savings, config.mode, { userEffort: efforts.user, total, promptEffort: efforts.prompt, style: config.statusStyle, compare: config.compareModel }))
