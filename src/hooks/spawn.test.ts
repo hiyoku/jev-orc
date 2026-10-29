@@ -19,13 +19,13 @@ const TIMEOUT_MS = 8000
 const START = { cwd: '/work', surface: null, isInteractive: false }
 // Read-only, low complexity, low deliberation: haiku + low + t-read.
 const READ_ONLY = {
-  complexity: { score: 0.2, confidence: 0.9 },
+  complexity: { score: 0.2, confidence: 0.9, probabilities: [0.8, 0.2, 0, 0] },
   deliberation: { noul: 0.1 },
   edits_files: { noul: 0 }, runs_shell: { noul: 0 }, web_research: { noul: 0 },
   library_docs: { noul: 0 }, browser: { noul: 0 },
 }
 // Writes, medium complexity: sonnet + t-read-edit.
-const WRITES = { ...READ_ONLY, complexity: { score: 1.5, confidence: 0.9 }, edits_files: { noul: 0.9 } }
+const WRITES = { ...READ_ONLY, complexity: { score: 1.5, confidence: 0.9, probabilities: [0, 0.5, 0.5, 0] }, edits_files: { noul: 0.9 } }
 
 type Agent = {
   tool_use_id: string; description: string; prompt: string; subagent_type?: string; name?: string; team_name?: string

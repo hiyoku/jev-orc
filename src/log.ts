@@ -32,11 +32,14 @@ type JevRequest = { tarefa: string; contexto: string }
 
 const round = (n: number) => Math.round(n * 100) / 100
 
-// The JEV's raw numbers, flat: a score question gives its score and `<name>_confidence`.
+// The JEV's raw numbers, flat: a score question gives its score, `<name>_confidence` and the chance
+// of each level as `<name>_p<level>`.
 export const jevNumbers = (answers: JevAnswers): Record<string, number> =>
   Object.fromEntries(
     Object.entries(answers).flatMap(([name, a]) =>
-      'score' in a ? [[name, round(a.score)], [`${name}_confidence`, round(a.confidence)]] : [[name, round(a.noul)]],
+      'score' in a
+        ? [[name, round(a.score)], [`${name}_confidence`, round(a.confidence)], ...a.probabilities.map((p, level) => [`${name}_p${level}`, round(p)])]
+        : [[name, round(a.noul)]],
     ),
   )
 
@@ -44,10 +47,12 @@ export const jevNumbers = (answers: JevAnswers): Record<string, number> =>
 export function fromJevNumbers(numbers: Record<string, number>): JevAnswers | undefined {
   const out: Record<string, unknown> = {}
   for (const [name, q] of Object.entries(questions)) {
-    const keys = q.type === 'score' ? [name, `${name}_confidence`] : [name]
-    const [a, b] = keys.map(k => numbers[k])
+    const levels = q.type === 'score' ? q.criteria.map((_, level) => `${name}_p${level}`) : []
+    const keys = q.type === 'score' ? [name, `${name}_confidence`, ...levels] : [name]
     if (!keys.every(k => Number.isFinite(numbers[k]))) return undefined
-    out[name] = q.type === 'score' ? { score: a, confidence: b } : { noul: a }
+    out[name] = q.type === 'score'
+      ? { score: numbers[name], confidence: numbers[`${name}_confidence`], probabilities: levels.map(k => numbers[k]) }
+      : { noul: numbers[name] }
   }
   return out as JevAnswers
 }

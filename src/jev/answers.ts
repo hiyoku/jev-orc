@@ -1,6 +1,7 @@
 import type { questions } from './questions'
 
-export type ScoreAnswer = { score: number; confidence: number }
+// probabilities: the chance of each level, in the order of the question's criteria.
+export type ScoreAnswer = { score: number; confidence: number; probabilities: number[] }
 export type NoulAnswer = { noul: number }
 
 export type JevAnswers = {

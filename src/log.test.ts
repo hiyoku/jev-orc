@@ -75,7 +75,7 @@ test('a failing write reaches onError and the queue goes on', async () => {
 
 test('fromJevNumbers inverts jevNumbers and rejects missing numbers', () => {
   const answers = {
-    complexity: { score: 2.5, confidence: 0.75 },
+    complexity: { score: 2.5, confidence: 0.75, probabilities: [0, 0.25, 0, 0.75] },
     deliberation: { noul: 0.5 },
     edits_files: { noul: 1 },
     runs_shell: { noul: 0 },
@@ -86,4 +86,6 @@ test('fromJevNumbers inverts jevNumbers and rejects missing numbers', () => {
   expect(fromJevNumbers(jevNumbers(answers))).toEqual(answers)
   const { complexity_confidence: _, ...partial } = jevNumbers(answers)
   expect(fromJevNumbers(partial)).toBeUndefined()
+  const { complexity_p3: __, ...noLevel } = jevNumbers(answers)
+  expect(fromJevNumbers(noLevel)).toBeUndefined()
 })
