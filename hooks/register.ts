@@ -12,7 +12,7 @@ export const register: Register = (on, options) => {
   const registered = new Set<string>()
   // The status view the registration shares; the user's effort is not seen here yet.
   const view = (total?: Savings) => ({ total, style: config.statusStyle, compare: config.compareModel })
-  // Set at session.start, which runs again on every module reload; English until then.
+  // shortcut: set at session.start, which runs once per process, so after a reload (an option change) this stays English; resolve the language in each hook that speaks if that matters.
   const text: { s: Strings } = { s: STRINGS.en }
 
   on('session.start', async ($, e, next) => {
@@ -55,8 +55,7 @@ export const register: Register = (on, options) => {
       const source = config.apiKey ? 'option' : env.TYPESAFE_API_KEY ? 'TYPESAFE_API_KEY' : env.JEV_API_KEY ? 'JEV_API_KEY' : 'none'
       await $.state.set({ plugin: 'jev-orchestrator', key: 'key' } as const, { source, env, endpoint: new URL(config.endpoint).host })
     } catch {} // the state copies are for other plugins: the routing does not depend on them
-    // Off: clear a line an earlier load drew, which a reload does not take down.
-    $.ui.status(config.showStatus ? formatStatus(value ?? EMPTY_SAVINGS, config.mode, view(total)) : undefined)
+    if (config.showStatus) $.ui.status(formatStatus(value ?? EMPTY_SAVINGS, config.mode, view(total)))
     return next(e)
   })
 

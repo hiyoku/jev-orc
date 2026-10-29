@@ -100,6 +100,7 @@ export function routeAgentSpawns(on: On, config: Config, registered: ReadonlySet
   // ponytail: a listing built during that window shows the profile; a per-dispatch flag if the host adds one
   const dispatching = new Map<string, number>()
   let warnedMissingKey = false
+  let cleared = false
   const warned = { log: false }
   // ponytail: oldest-first eviction past the cap; a repeat older than 1000 routings is routed again; revisit if decisions.jsonl shows a tool_use_id routed twice
   const routedIds = new Set<string>()
@@ -129,6 +130,11 @@ export function routeAgentSpawns(on: On, config: Config, registered: ReadonlySet
   // mainEffort: one JEV call per typed prompt; the turn waits for it (up to JEV_TIMEOUT_MS).
   // ponytail: no semaphore, the main loop runs one turn at a time
   on('turn.start', async ($, e, next) => {
+    // session.start runs once per process and a reload keeps the line: a load with it off clears it on its first turn.
+    if (!config.showStatus && !cleared) {
+      cleared = true
+      $.ui.status(undefined)
+    }
     if (!config.mainEffort || config.mode !== 'auto' || !e.text.trim()) return next(e)
     const task = { tarefa: e.text.slice(0, MAX_TASK_CHARS), contexto: MAIN_CONTEXT }
     const entry = { tool_use_id: e.turnId, description: e.text.slice(0, 80), models: [] }

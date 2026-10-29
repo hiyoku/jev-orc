@@ -436,10 +436,18 @@ test('showStatus false: no status line, the mode and the total still reach $.sta
   const w = await world($, on)
   await callAgent($, agent('s1'))
   await $.turn.complete({ ...done, agentId: 'a-s1', usage: { ...usage, model: 'claude-haiku-5-5' } })
-  // session.start clears a line an earlier load drew; nothing draws one after
-  expect(w.statuses).toEqual([undefined])
+  // no turn started: nothing draws, nothing clears
+  expect(w.statuses).toEqual([])
   expect(w.state.get('mode')?.value).toBe('auto')
   expect(w.state.get('total')?.value).toMatchObject({ agents: 1, cost: 0.005 })
+})
+
+test('showStatus false: the first turn of a load clears the line, once', { options: { showStatus: false } }, async ($, on) => {
+  on('turn.start', (_, e) => ({ turnId: e.turnId }))
+  const w = await world($, on)
+  await $.turn.start({ text: 'hi', turnId: 'c1' })
+  await $.turn.start({ text: 'hi', turnId: 'c2' })
+  expect(w.statuses).toEqual([undefined])
 })
 
 test('the key status names its source and never holds the key', async ($, on) => {
