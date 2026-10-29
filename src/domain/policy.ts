@@ -10,20 +10,14 @@ export type Decision = {
   reasons: string[]
 }
 
-// ponytail: cortes não calibrados; recalibrar com ≥200 linhas de decisions.jsonl (distribuição de complexity/confidence por modelo escolhido)
-const HAIKU_BELOW = 0.75
-const SONNET_BELOW = 2.25
-const LOW_CONFIDENCE = 0.4
+// ponytail: cortes não calibrados; recalibrar com ≥200 linhas de decisions.jsonl (distribuição de complexity_p0 e complexity_p3 por modelo escolhido)
+// Chance of the mechanical complexity level (0) from which haiku is enough.
+const HAIKU_FROM = 0.6
+// Chance of the open-design complexity level (3) from which the task goes to opus.
+const OPUS_FROM = 0.4
 const WEB_RESEARCH_FLOOR = 0.5
-// ponytail: cortes não calibrados — a verifier only on opus-tier complexity with confidence below this; recalibrar pela distribuição de confidence nas decisões opus de decisions.jsonl (≥200 linhas)
-const VERIFY_CONFIDENCE_BELOW = 0.5
-// ponytail: cortes não calibrados — deliberation noul abaixo de cada limite dá o effort correspondente; acima do último, max; recalibrar pela distribuição de deliberation em decisions.jsonl (≥200 linhas)
-const EFFORT_CUTS: readonly [number, Effort][] = [
-  [0.2, 'low'],
-  [0.4, 'medium'],
-  [0.6, 'high'],
-  [0.8, 'xhigh'],
-]
+// ponytail: corte não calibrado — opus com a chance do nível 3 abaixo deste valor ainda está em dúvida, e um verificador revisa; recalibrar pela distribuição de complexity_p3 nas decisões opus de decisions.jsonl (≥200 linhas)
+const VERIFY_BELOW = 0.7
 
 // ponytail: cortes não calibrados; faltar uma tool custa um agent perdido, sobrar uma custa quase nada → shell/edit mais baixos; recalibrar com o replay (docs/dev/known-limits.md)
 const GROUP_THRESHOLDS = { edit: 0.3, shell: 0.3, web: 0.5, docs: 0.5, browser: 0.5 } as const satisfies Record<
@@ -46,17 +40,15 @@ export function decide(answers: JevAnswers, config: Config): Decision {
   const profile: Profile = writes ? 'general' : 'explore'
   const model = projectModel(desiredTier(answers), config)
   const effort = projectEffort(desiredEffort(answers), config.efforts)
+  const [mechanical, , , open] = answers.complexity.probabilities
   const reasons = [
     `profile ${profile}: ${writes ? 'writes' : 'read-only'}`,
-    `model ${model}: complexity ${answers.complexity.score.toFixed(2)}`,
-    `effort ${effort}: deliberation ${answers.deliberation.noul.toFixed(2)}`,
+    `model ${model}: complexity p0 ${mechanical.toFixed(2)}, p3 ${open.toFixed(2)}`,
+    `effort ${effort}: deliberation ${answers.deliberation.score.toFixed(2)}`,
   ]
 
   const verifier = verifierFor(model, answers, config)
-  if (verifier) {
-    const { score, confidence } = answers.complexity
-    reasons.push(`verifier ${verifier}: complexity ${score.toFixed(2)}, confidence ${confidence.toFixed(2)}`)
-  }
+  if (verifier) reasons.push(`verifier ${verifier}: complexity p3 ${open.toFixed(2)}`)
 
   return { models: verifier ? [model, verifier] : [model], effort, toolGroups, profile, reasons }
 }
@@ -68,9 +60,11 @@ function groupsOf(answers: JevAnswers): ToolGroup[] {
   return ['read', ...groups]
 }
 
+// By the chance of the open level first, then of the mechanical one: the average score hides a split
+// between them.
 function desiredTier({ complexity, web_research }: JevAnswers): number {
-  let tier = complexity.score < HAIKU_BELOW ? 0 : complexity.score < SONNET_BELOW ? 1 : 2
-  if (complexity.confidence < LOW_CONFIDENCE) tier = Math.min(tier + 1, MODELS.length - 1)
+  const [mechanical, , , open] = complexity.probabilities
+  let tier = open >= OPUS_FROM ? 2 : mechanical >= HAIKU_FROM ? 0 : 1
   if (web_research.noul >= WEB_RESEARCH_FLOOR) tier = Math.max(tier, 1)
   return tier
 }
@@ -78,18 +72,17 @@ function desiredTier({ complexity, web_research }: JevAnswers): number {
 // The wanted tier, capped at maxModel.
 const projectModel = (tier: number, config: Config): Model => MODELS[Math.min(tier, MODELS.indexOf(config.maxModel))]
 
-// The strongest enabled model other than the primary, only when the task justifies a second look.
+// The strongest enabled model other than the primary, only when the open level is likely but unsettled.
 function verifierFor(primary: Model, { complexity }: JevAnswers, config: Config): Model | undefined {
-  const justified =
-    config.multiModel &&
-    complexity.score >= SONNET_BELOW &&
-    complexity.confidence < VERIFY_CONFIDENCE_BELOW
+  const open = complexity.probabilities[3]
+  const justified = config.multiModel && open >= OPUS_FROM && open < VERIFY_BELOW
   if (!justified) return undefined
   return MODELS.slice(0, MODELS.indexOf(config.maxModel) + 1).filter((model) => model !== primary).pop()
 }
 
+// The nearest deliberation level is the effort: level 0 is low, level 4 is max.
 export function desiredEffort({ deliberation }: JevAnswers): Effort {
-  return EFFORT_CUTS.find(([limit]) => deliberation.noul < limit)?.[1] ?? 'max'
+  return EFFORTS[Math.min(Math.max(Math.round(deliberation.score), 0), EFFORTS.length - 1)]
 }
 
 // Highest allowed effort not above the request; if the request is below all, the lowest allowed.

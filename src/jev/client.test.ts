@@ -2,16 +2,25 @@ import { expect, test } from 'claude-code/testing'
 import { loadConfig } from '../config'
 import { askJev, JevError } from './client'
 import { questions } from './questions'
+import type { JevState } from './state'
 
 const config = loadConfig({}).config
-const task = { tarefa: 'rename x', contexto: 'general-purpose: rename' }
+const task: JevState = { tarefa: 'rename x', agente: { tipo: 'general-purpose' }, descricao: 'rename' }
 const KEY = 'sk-secret-123'
+// The API's shape: a score's probabilities keyed by level index.
 const good = {
+  model: 'jev-1.14.0',
   answers: {
-    complexity: { score: 0.5, confidence: 0.9 },
-    deliberation: { noul: 0.1 }, edits_files: { noul: 0.9 }, runs_shell: { noul: 0 },
+    complexity: { score: 0.5, confidence: 0.9, probabilities: { 0: 0.5, 1: 0.5, 2: 0, 3: 0 } },
+    deliberation: { score: 0, confidence: 1, probabilities: { 0: 1, 1: 0, 2: 0, 3: 0, 4: 0 } }, edits_files: { noul: 0.9 }, runs_shell: { noul: 0 },
     web_research: { noul: 0 }, library_docs: { noul: 0 }, browser: { noul: 0 },
   },
+}
+// What askJev returns for `good`: each score's probabilities as an array, by level.
+const parsed = {
+  ...good.answers,
+  complexity: { score: 0.5, confidence: 0.9, probabilities: [0.5, 0.5, 0, 0] },
+  deliberation: { score: 0, confidence: 1, probabilities: [1, 0, 0, 0, 0] },
 }
 
 // Plain fake `$`: the host refuses `$.env/http/clock` calls from modules that the plugin's
@@ -43,7 +52,7 @@ test('the fixture answers match the questions', () => {
 
 test('success: posts body and bearer header, returns answers', async () => {
   const { run, calls } = setup({ TYPESAFE_API_KEY: KEY }, () => ({ status: 200, text: JSON.stringify(good) }))
-  expect((await run()).ok).toEqual(good.answers)
+  expect((await run()).ok).toEqual({ answers: parsed, model: 'jev-1.14.0' })
   expect(calls[0].url).toBe('https://api.typesafe.ai/v1/systemone')
   expect(calls[0].init?.method).toBe('POST')
   expect(calls[0].init?.headers?.Authorization).toBe(`Bearer ${KEY}`)
@@ -56,7 +65,7 @@ test('success: posts body and bearer header, returns answers', async () => {
 test('OpenRouter: the configured endpoint gets the same body and the option key', async () => {
   const cfg = loadConfig({ jevEndpoint: 'https://openrouter.ai/api/v1/systemone', typesafeApiKey: 'fake-openrouter-key' }).config
   const { run, calls } = setup({}, () => ({ status: 200, text: JSON.stringify(good) }), cfg)
-  expect((await run()).ok).toEqual(good.answers)
+  expect((await run()).ok).toEqual({ answers: parsed, model: 'jev-1.14.0' })
   expect(calls[0].url).toBe('https://openrouter.ai/api/v1/systemone')
   expect(calls[0].init?.headers?.Authorization).toBe('Bearer fake-openrouter-key')
   expect(JSON.parse(calls[0].init?.body ?? '').model).toBe('jev-latest')
@@ -117,9 +126,18 @@ test('HTTP 500', async () => {
   expect((await run()).err?.kind).toBe('http_500')
 })
 
+test('the answering model is kept as a string, cut, or left out', async () => {
+  let model: unknown = 'x'.repeat(100)
+  const { run } = setup({ TYPESAFE_API_KEY: KEY }, () => ({ status: 200, text: JSON.stringify({ ...good, model }) }))
+  expect((await run()).ok?.model).toBe('x'.repeat(64))
+  model = 42
+  expect((await run()).ok?.model).toBeUndefined()
+})
+
 test('malformed payloads are bad_payload', async () => {
   const bodies = ['not json', '{}', JSON.stringify({ answers: { ...good.answers, browser: { noul: 'x' } } }),
-    JSON.stringify({ answers: { ...good.answers, complexity: { score: 1 } } })]
+    JSON.stringify({ answers: { ...good.answers, complexity: { score: 1 } } }),
+    JSON.stringify({ answers: { ...good.answers, complexity: { score: 1, confidence: 0.9, probabilities: { 0: 1 } } } })]
   let i = 0
   const { run } = setup({ TYPESAFE_API_KEY: KEY }, () => ({ status: 200, text: bodies[i] }))
   for (; i < bodies.length; i++) expect((await run()).err?.kind).toBe('bad_payload')

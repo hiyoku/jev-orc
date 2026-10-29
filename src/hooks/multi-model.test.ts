@@ -6,14 +6,15 @@ import type { JevAnswers } from '../jev/answers'
 import { LOG_PATH } from '../log'
 
 const MULTI = { multiModel: true }
-const answers = (score: number, confidence: number): JevAnswers => ({
-  complexity: { score, confidence },
-  deliberation: { noul: 0.1 },
+// complexity as the chance of each level: 0 mechanical, 1 localized, 2 multi-file, 3 open design.
+const answers = (probabilities: number[]): JevAnswers => ({
+  complexity: { score: probabilities.reduce((sum, p, level) => sum + p * level, 0), confidence: 0.9, probabilities },
+  deliberation: { score: 0, confidence: 1, probabilities: [1, 0, 0, 0, 0] },
   edits_files: { noul: 0 }, runs_shell: { noul: 0 }, web_research: { noul: 0 },
   library_docs: { noul: 0 }, browser: { noul: 0 },
 })
-// Opus-tier complexity with low confidence: the case that justifies a verifier.
-const HARD = answers(2.8, 0.3)
+// Open design likely but unsettled: the case that justifies a verifier.
+const HARD = answers([0, 0.1, 0.4, 0.5])
 const modelsOf = (a: JevAnswers, options = {}) => decide(a, loadConfig(options).config)
 
 // Policy
@@ -23,9 +24,8 @@ test('multiModel is off by default: one model', () => {
 })
 
 test('on without justification: one model', () => {
-  expect(modelsOf(answers(2.8, 0.9), MULTI).models).toEqual(['opus'])
-  expect(modelsOf(answers(1.5, 0.3), MULTI).models).toEqual(['opus'])
-  expect(modelsOf(answers(1.5, 0.45), MULTI).models).toEqual(['sonnet'])
+  expect(modelsOf(answers([0, 0, 0.1, 0.9]), MULTI).models).toEqual(['opus'])
+  expect(modelsOf(answers([0, 0.5, 0.5, 0]), MULTI).models).toEqual(['sonnet'])
 })
 
 test('on with justification: the strongest other enabled model verifies', () => {

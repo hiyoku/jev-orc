@@ -172,9 +172,10 @@ As mensagens do plugin (toasts, respostas do `/jev-orc` e palavras da status lin
 | `models` | modelos (o segundo é o verificador, se houver) |
 | `effort`, `profile` | decisão aplicada |
 | `reasons` | por que cada escolha foi feita |
-| `jev` | números crus do JEV (scores, `*_confidence`, `deliberation`) |
+| `jev` | números crus do JEV: cada score, o seu `*_confidence` e a chance de cada nível (`*_p0`, `*_p1`, ...), e cada resposta de sim/não |
+| `jev_model`, `plugin_version` | a versão do JEV que respondeu (ex.: `jev-1.14.0`) e a versão deste plugin: uma calibração usa uma de cada |
 | `error` | `missing_key`, `timeout`, `network`, `bad_payload` ou `http_<status>` |
-| `jev_request` | só com `logLevel=debug`: tarefa truncada em 200 caracteres e contexto |
+| `jev_request` | só com `logLevel=debug`: os campos enviados ao JEV, com a tarefa e a última resposta do agente cortadas em 200 caracteres |
 
 Nunca é gravado: a chave de API, o prompt completo, mensagens e resultados de tools.
 Rotação: ao passar de 1 MiB, o arquivo vira `decisions.1.jsonl` (uma geração). `logLevel=off`
@@ -189,29 +190,31 @@ O log fica fora do repo e não é versionado (`.gitignore`: `decisions*.jsonl`).
 
 ## Multi-modelo (opcional)
 
-Desligado por padrão (`multiModel=false`). Ligado, um verificador
-revisa a resposta quando a complexidade é de nível opus e a confiança do JEV está abaixo de 0.5.
-O verificador roda no perfil só de leitura `jev-orchestrator:t-read`. Na validação, o corte de
-confiança 0.5 quase nunca foi atingido (confiança ≥ 0.69 mesmo para pedidos vagos), então o
-verificador não disparou. A recalibração será feita com dados do log (decisão do usuário).
+Desligado por padrão (`multiModel=false`). Ligado, um verificador revisa a resposta quando o JEV
+escolheu opus porque o nível de design aberto da complexidade é provável (chance ≥ 0.4), mas não
+certo (abaixo de 0.7). O verificador roda no perfil só de leitura `jev-orchestrator:t-read`. Os
+cortes ainda não foram calibrados; a recalibração será feita com dados do log (decisão do usuário).
 
 ## Effort do prompt principal (opcional)
 
 Desligado por padrão (`mainEffort=false`). O roteamento acima vale só para subagentes; os seus
 prompts rodam no modelo da sessão com o seu effort. Ligado (e com `mode=auto`), cada prompt
 digitado passa antes pelo JEV e o effort vira o que o JEV escolheu (deliberation), limitado pela
-`maxEffort`. O modelo nunca muda: trocá-lo no meio da conversa jogaria
+`maxEffort`. O JEV também lê a última resposta do agente, para julgar uma continuação curta ("sim", "explica melhor") pelo que ela retoma. O modelo nunca muda: trocá-lo no meio da conversa jogaria
 fora o cache do prompt. Custa uma chamada ao JEV, e até 8 s de espera, antes de cada
 prompt. A status line mostra `prompt·<effort>` e o log uma entrada com `"outcome":"main"`; sem o
 JEV, o prompt fica com o seu effort.
 
 ## Privacidade
 
-A cada spawn de subagente roteado (e a cada prompt, com `mainEffort` ligado) o texto da tarefa,
-cortado em 4000 caracteres, é enviado ao endpoint do JEV (`jevEndpoint`: TypeSafe ou OpenRouter).
-Nada mais sai da sua máquina. A chave fica no armazenamento seguro do sistema. O log local de
-decisões guarda a tarefa só com `logLevel=debug` (cortada em 200 caracteres); `logLevel=off` não
-escreve nada. O nome do agente e uma descrição curta dele (o seu `agentHints`, ou a que o Claude Code dá ao agente, cortada em 120 caracteres) vão junto com a tarefa.
+A cada spawn de subagente roteado (e a cada prompt, com `mainEffort` ligado) o texto da tarefa é
+enviado ao endpoint do JEV (`jevEndpoint`: TypeSafe ou OpenRouter); acima de 4000 caracteres, vão
+o começo e o fim, sem o meio. O nome do agente e uma descrição curta dele (o seu `agentHints`, ou a
+que o Claude Code dá ao agente, cortada em 120 caracteres) vão junto com a tarefa de um subagente.
+Com `mainEffort` ligado, a última resposta do agente vai junto com o seu prompt, cortada do mesmo
+jeito em 1500 caracteres. Nada mais sai da sua máquina. A chave fica no armazenamento seguro do
+sistema. O log local de decisões guarda esses textos só com `logLevel=debug` (cortados em 200
+caracteres); `logLevel=off` não escreve nada.
 
 ## Contribuindo
 

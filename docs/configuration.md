@@ -15,7 +15,7 @@ Adjust via `/config` (row `jev-orchestrator.<field>`) or `pluginConfigs["jev-orc
 | `agentHints` | string | — | `name=text` pairs split by `\|` | short text JEV reads beside an agent's name, e.g. `go-code-reviewer=reviews Go code\|Plan=plans, never edits`; without a hint JEV reads the agent's own description from Claude Code. Every text is cut to 120 characters |
 | `maxModel` | string | `opus` | `haiku`, `sonnet`, `opus` | the strongest model JEV may pick for a subagent |
 | `maxEffort` | string | `xhigh` | `low`..`max` | the highest effort JEV may pick, for subagents and (`mainEffort`) your prompts |
-| `mainEffort` | boolean | `false` | | JEV sets the effort of your own prompts; the session model stays |
+| `mainEffort` | boolean | `false` | | JEV sets the effort of your own prompts; the session model stays. Sends JEV your prompt and the agent's last reply |
 | `multiModel` | boolean | `false` | | a second, stronger model reviews hard tasks JEV is unsure about (verifier) |
 | `compareModel` | string | `auto` | `auto`, `haiku`, `sonnet`, `opus`, `fable` | model the status line prices the routed tokens against; auto: the model of your session. Only the status line changes, not the routing |
 | `statusStyle` | string | `nerd` | `nerd`, `plain` | nerd: Nerd Font icons and `│` separators (needs a Nerd Font in the terminal); plain: text only, the previous format |

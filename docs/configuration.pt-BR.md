@@ -15,7 +15,7 @@ Ajuste por `/config` (linha `jev-orchestrator.<campo>`) ou `pluginConfigs["jev-o
 | `agentHints` | string | — | pares `nome=texto` separados por `\|` | texto curto que o JEV lê ao lado do nome do agente, ex.: `go-code-reviewer=revisa código Go\|Plan=planeja, nunca edita`; sem dica, o JEV lê a descrição do próprio agente, dada pelo Claude Code. Todo texto é cortado em 120 caracteres |
 | `maxModel` | string | `opus` | `haiku`, `sonnet`, `opus` | o modelo mais forte que o JEV pode escolher para um subagente |
 | `maxEffort` | string | `xhigh` | `low`..`max` | o maior effort que o JEV pode escolher, para subagentes e (`mainEffort`) os seus prompts |
-| `mainEffort` | boolean | `false` | | o JEV define o effort dos seus próprios prompts; o modelo da sessão fica |
+| `mainEffort` | boolean | `false` | | o JEV define o effort dos seus próprios prompts; o modelo da sessão fica. Envia ao JEV o seu prompt e a última resposta do agente |
 | `multiModel` | boolean | `false` | | um segundo modelo, mais forte, revisa tarefas difíceis em que o JEV está inseguro (verificador) |
 | `compareModel` | string | `auto` | `auto`, `haiku`, `sonnet`, `opus`, `fable` | modelo contra o qual a status line precifica os tokens roteados; auto: o modelo da sua sessão. Muda só a status line, não o roteamento |
 | `statusStyle` | string | `nerd` | `nerd`, `plain` | nerd: ícones Nerd Font e separadores `│` (exige uma Nerd Font no terminal); plain: só texto, o formato anterior |

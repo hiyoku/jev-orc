@@ -2,6 +2,7 @@ import type { LogLevel } from './config'
 import type { JevAnswers } from './jev/answers'
 import type { JevErrorKind } from './jev/client'
 import { questions } from './jev/questions'
+import type { JevState } from './jev/state'
 
 // Under HOME: no data directory in the plugin API, and $.store is a key-value JSON, not a file to tail.
 export const LOG_PATH = '.claude/jev-orchestrator/decisions.jsonl'
@@ -25,18 +26,22 @@ export type LogEntry = {
   profile?: string
   reasons: string[]
   jev?: Record<string, number>
+  // Which JEV answered and which plugin asked: a calibration keeps to one of each.
+  jev_model?: string
+  plugin_version?: string
   error?: JevErrorKind
 }
 
-type JevRequest = { tarefa: string; contexto: string }
-
 const round = (n: number) => Math.round(n * 100) / 100
 
-// The JEV's raw numbers, flat: a score question gives its score and `<name>_confidence`.
+// The JEV's raw numbers, flat: a score question gives its score, `<name>_confidence` and the chance
+// of each level as `<name>_p<level>`.
 export const jevNumbers = (answers: JevAnswers): Record<string, number> =>
   Object.fromEntries(
     Object.entries(answers).flatMap(([name, a]) =>
-      'score' in a ? [[name, round(a.score)], [`${name}_confidence`, round(a.confidence)]] : [[name, round(a.noul)]],
+      'score' in a
+        ? [[name, round(a.score)], [`${name}_confidence`, round(a.confidence)], ...a.probabilities.map((p, level) => [`${name}_p${level}`, round(p)])]
+        : [[name, round(a.noul)]],
     ),
   )
 
@@ -44,13 +49,22 @@ export const jevNumbers = (answers: JevAnswers): Record<string, number> =>
 export function fromJevNumbers(numbers: Record<string, number>): JevAnswers | undefined {
   const out: Record<string, unknown> = {}
   for (const [name, q] of Object.entries(questions)) {
-    const keys = q.type === 'score' ? [name, `${name}_confidence`] : [name]
-    const [a, b] = keys.map(k => numbers[k])
+    const levels = q.type === 'score' ? q.criteria.map((_, level) => `${name}_p${level}`) : []
+    const keys = q.type === 'score' ? [name, `${name}_confidence`, ...levels] : [name]
     if (!keys.every(k => Number.isFinite(numbers[k]))) return undefined
-    out[name] = q.type === 'score' ? { score: a, confidence: b } : { noul: a }
+    out[name] = q.type === 'score'
+      ? { score: numbers[name], confidence: numbers[`${name}_confidence`], probabilities: levels.map(k => numbers[k]) }
+      : { noul: numbers[name] }
   }
   return out as JevAnswers
 }
+
+// At debug, what JEV read, each long text cut to DEBUG_TASK_CHARS.
+const shortened = ({ ultima_resposta_do_agente: reply, ...request }: JevState): JevState => ({
+  ...request,
+  tarefa: request.tarefa.slice(0, DEBUG_TASK_CHARS),
+  ...(reply ? { ultima_resposta_do_agente: reply.slice(0, DEBUG_TASK_CHARS) } : {}),
+})
 
 // No $ API appends, so a write reads the file and writes it back whole. One queue per module keeps
 // parallel spawns from interleaving or losing lines.
@@ -58,9 +72,9 @@ export function fromJevNumbers(numbers: Record<string, number>): JevAnswers | un
 let queue: Promise<void> = Promise.resolve()
 
 // Never awaited by the routing: a failure reaches `onError`, never the caller.
-export function logDecision(io: LogIo, level: LogLevel, entry: LogEntry, request: JevRequest | undefined, onError: () => void): void {
+export function logDecision(io: LogIo, level: LogLevel, entry: LogEntry, request: JevState | undefined, onError: () => void): void {
   if (level === 'off') return
-  const debug = level === 'debug' && request ? { jev_request: { tarefa: request.tarefa.slice(0, DEBUG_TASK_CHARS), contexto: request.contexto } } : {}
+  const debug = level === 'debug' && request ? { jev_request: shortened(request) } : {}
   const line = `${JSON.stringify({ ts: new Date().toISOString(), ...entry, ...debug })}\n`
   queue = queue.then(() => append(io, line)).catch(onError)
 }

@@ -5,7 +5,8 @@ import { LOG_PATH } from '../log'
 import { MAX_AGENTS, PARALLELISM } from '../config'
 import { STRINGS } from '../i18n'
 import { TOTAL_KEY } from '../savings'
-import { isOwnSpawn, MAX_TASK_CHARS } from './spawn'
+import { isOwnSpawn } from './spawn'
+import { MAX_TASK_CHARS, type JevState } from '../jev/state'
 
 // The world's status line is plain, so the strings below stay as they were; a test's own options win.
 const test: typeof baseTest = ((name: string, a: any, b?: any) =>
@@ -19,19 +20,19 @@ const TIMEOUT_MS = 8000
 const START = { cwd: '/work', surface: null, isInteractive: false }
 // Read-only, low complexity, low deliberation: haiku + low + t-read.
 const READ_ONLY = {
-  complexity: { score: 0.2, confidence: 0.9 },
-  deliberation: { noul: 0.1 },
+  complexity: { score: 0.2, confidence: 0.9, probabilities: [0.8, 0.2, 0, 0] },
+  deliberation: { score: 0, confidence: 1, probabilities: [1, 0, 0, 0, 0] },
   edits_files: { noul: 0 }, runs_shell: { noul: 0 }, web_research: { noul: 0 },
   library_docs: { noul: 0 }, browser: { noul: 0 },
 }
 // Writes, medium complexity: sonnet + t-read-edit.
-const WRITES = { ...READ_ONLY, complexity: { score: 1.5, confidence: 0.9 }, edits_files: { noul: 0.9 } }
+const WRITES = { ...READ_ONLY, complexity: { score: 1.5, confidence: 0.9, probabilities: [0, 0.5, 0.5, 0] }, edits_files: { noul: 0.9 } }
 
 type Agent = {
   tool_use_id: string; description: string; prompt: string; subagent_type?: string; name?: string; team_name?: string
   model?: string; effort?: string
 }
-type JevBody = { state: { tarefa: string; contexto: string } }
+type JevBody = { state: JevState }
 type World = {
   env?: Record<string, string>
   jev?: (body: JevBody) => Promise<unknown> | unknown
@@ -81,14 +82,15 @@ async function world($: Engine, on: On, opts: World = {}) {
   on('store.get', (_, e) => ({ value: store.get(e.key) }))
   on('store.set', (_, e) => (store.set(e.key, e.value), { value: undefined }))
   on('fs.exists', (_, e) => ({ value: files.has(e.path) }))
-  on('fs.read', (_, e) => ({ value: files.get(e.path)! }))
+  // The plugin's manifest, wherever the host puts the plugin's root.
+  on('fs.read', (_, e) => ({ value: e.path.endsWith('/.claude-plugin/plugin.json') ? '{"version":"9.9.9"}' : files.get(e.path)! }))
   on('fs.write', (_, e) => (files.set(e.path, e.text), { value: undefined }))
   on('http.fetch', async (_, e) => {
     const body = JSON.parse(e.init?.body ?? '{}') as JevBody
     bodies.push(body)
     auths.push(e.init?.headers?.Authorization)
     const answers = await (opts.jev ?? (() => READ_ONLY))(body)
-    return { value: { status: 200, ok: true, headers: {}, text: JSON.stringify({ answers }) } }
+    return { value: { status: 200, ok: true, headers: {}, text: JSON.stringify({ model: 'jev-test', answers }) } }
   })
   on('tool.call', async (_, e) => {
     const a = e as unknown as Agent
@@ -118,7 +120,7 @@ test('happy path: effort at tool.call, model and profile at spawn, by tool_use_i
   await callAgent($, agent('t1', { prompt: 'x'.repeat(MAX_TASK_CHARS + 50) }))
   expect(w.tools[0].effort).toBe('low')
   expect(w.bodies[0].state.tarefa).toHaveLength(MAX_TASK_CHARS)
-  expect(w.bodies[0].state.contexto).toBe('general-purpose: read file')
+  expect(w.bodies[0].state).toMatchObject({ tarefa_cortada: true, agente: { tipo: 'general-purpose' }, descricao: 'read file' })
   expect(w.spawns[0].tool_use_id).toBe('t1')
   expect(w.spawns[0].model).toBe('haiku')
   expect(w.spawns[0].subagentType).toBe('jev-orchestrator:t-read')
@@ -375,7 +377,8 @@ test('one log line per routed spawn, and the status names the routing', async ($
   expect(lines).toHaveLength(1)
   expect(lines[0]).toMatchObject({
     tool_use_id: 'l1', description: 'read file', outcome: 'routed', models: ['haiku'], effort: 'low',
-    profile: 'jev-orchestrator:t-read', jev: { complexity: 0.2, complexity_confidence: 0.9, deliberation: 0.1 },
+    profile: 'jev-orchestrator:t-read', jev: { complexity: 0.2, complexity_confidence: 0.9, complexity_p0: 0.8, deliberation: 0 },
+    jev_model: 'jev-test', plugin_version: '9.9.9',
   })
   expect(w.statuses.at(-1)).toBe('jev ON · haiku·low·t-read')
 })
@@ -567,9 +570,9 @@ test('mainEffort: JEV sets the main turn effort only, until the turn completes',
   await s.step($, 'm1', 'claude-sonnet-5-5', 'a-sub')
   await $.turn.complete({ ...done, turnId: 'm1' })
   await s.step($, 'm1', 'claude-sonnet-5-5')
-  // deliberation 0.1 -> low; a subagent's request and a finished turn keep theirs
+  // deliberation level 0 -> low; a subagent's request and a finished turn keep theirs
   expect(s.efforts).toEqual(['low', 'high', 'high'])
-  expect(w.bodies[0].state).toMatchObject({ tarefa: 'commit this' })
+  expect(w.bodies[0].state).toMatchObject({ tarefa: 'commit this', origem: 'the user typing to the coding agent in the main session' })
   expect(w.statuses.at(-1)).toContain('prompt·low')
   // the dash shows the main loop's effort as run, not a subagent's
   expect(w.statuses.at(-1)).toMatch(/ — high$/)
@@ -577,13 +580,33 @@ test('mainEffort: JEV sets the main turn effort only, until the turn completes',
   expect(w.files.get(`${HOME}/${LOG_PATH}`)).toContain('"outcome":"main"')
 })
 
+test('mainEffort: after a /clear the first prompt goes without the old answer', { options: { mainEffort: true } }, async ($, on) => {
+  stepper(on)
+  on('session.end', (_, e) => ({ sessionId: e.sessionId }))
+  const w = await world($, on)
+  await $.turn.complete({ ...done, turnId: 'c1', answer: 'Found 4 issues. Should I fix them?' })
+  await $.session.end({ reason: 'clear', sessionId: 's1' } as never)
+  await $.turn.start({ text: 'fix the test', turnId: 'c2' })
+  expect(w.bodies[0].state.ultima_resposta_do_agente).toBeUndefined()
+})
+
 test('mainEffort: maxEffort bounds the pick', { options: { mainEffort: true, maxEffort: 'medium' } }, async ($, on) => {
   const s = stepper(on)
-  await world($, on, { jev: () => ({ ...READ_ONLY, deliberation: { noul: 0.9 } }) })
+  await world($, on, { jev: () => ({ ...READ_ONLY, deliberation: { score: 4, confidence: 1, probabilities: [0, 0, 0, 0, 1] } }) })
   await $.turn.start({ text: 'design the cache', turnId: 'm2' })
   await s.step($, 'm2', 'claude-opus-5-5')
-  // deliberation 0.9 asks for max: capped at medium
+  // deliberation level 4 asks for max: capped at medium
   expect(s.efforts).toEqual(['medium'])
+})
+
+test('mainEffort: JEV reads the main loop\'s last answer beside a short prompt', { options: { mainEffort: true } }, async ($, on) => {
+  stepper(on)
+  const w = await world($, on)
+  await $.turn.complete({ ...done, turnId: 'm6', answer: 'Found 4 issues. Should I fix them?' })
+  await $.turn.complete({ ...done, turnId: 'm7', answer: ' ' })
+  await $.turn.complete({ ...done, agentId: 'stranger', answer: 'a subagent answer' })
+  await $.turn.start({ text: 'yes', turnId: 'm8' })
+  expect(w.bodies[0].state).toMatchObject({ tarefa: 'yes', ultima_resposta_do_agente: 'Found 4 issues. Should I fix them?' })
 })
 
 test('mainEffort: without JEV the prompt keeps its effort', { options: { mainEffort: true } }, async ($, on) => {
@@ -649,14 +672,20 @@ test('JEV reads the host\'s listing line beside the agent name, cut to 120 chara
   const listing = `Software architect. ${'x'.repeat(200)}`
   await $.agent.offer({ agent: 'Plan', description: listing, source: 'built-in', provider: ENGINE })
   await callAgent($, agent('h1', { subagent_type: 'Plan' }))
-  expect(w.bodies[0].state.contexto).toBe(`Plan (${listing.slice(0, 120)}): read file`)
+  expect(w.bodies[0].state.agente).toEqual({ tipo: 'Plan', dica: listing.slice(0, 120) })
 })
 
 test('agentHints wins over the host\'s listing line', { options: { agentHints: 'Plan=plans, never edits' } }, async ($, on) => {
   const w = await world($, on)
   await $.agent.offer({ agent: 'Plan', description: 'Software architect agent', source: 'built-in', provider: ENGINE })
   await callAgent($, agent('h2', { subagent_type: 'Plan' }))
-  expect(w.bodies[0].state.contexto).toBe('Plan (plans, never edits): read file')
+  expect(w.bodies[0].state.agente).toEqual({ tipo: 'Plan', dica: 'plans, never edits' })
+})
+
+test('JEV reads the description without the [jev] marker', async ($, on) => {
+  const w = await world($, on)
+  await callAgent($, agent('d1', { description: '[jev] read file' }))
+  expect(w.bodies[0].state.descricao).toBe('read file')
 })
 
 test('a routed Plan keeps its type and gets the model and the effort', async ($, on) => {

@@ -1,7 +1,7 @@
 export const questions = {
   complexity: {
     type: 'score',
-    instructions: 'How hard is it for a coding agent to complete `tarefa` correctly, given `contexto`?',
+    instructions: 'How hard is it for a coding agent to complete `tarefa` correctly?',
     criteria: [
       'Mechanical: run a command, read or locate something, rename, or tweak a constant or text; the exact change is already stated.',
       'Localized change in one or two files that follows an existing pattern, with clear acceptance criteria.',
@@ -10,8 +10,16 @@ export const questions = {
     ],
   },
   deliberation: {
-    type: 'noul',
-    instructions: 'Before acting on `tarefa`, does the agent need deliberate step-by-step reasoning (weighing tradeoffs, diagnosing an unknown cause, checking invariants) rather than just executing a clear instruction?',
+    type: 'score',
+    instructions: 'How much step-by-step reasoning does the agent need before acting on `tarefa`?',
+    // One level per effort, low to max.
+    criteria: [
+      'The task states the exact change or command; the agent only carries it out.',
+      'The agent follows a pattern already in the code and makes a few obvious choices.',
+      'The agent compares a few approaches or traces how several files work together before choosing one.',
+      'The agent must find the cause of a problem nobody has identified yet, or design something whose requirements are open.',
+      'A mistake would break subtle invariants such as concurrency, money or ledger balances, security or data migrations, so every step must be checked.',
+    ],
   },
   edits_files: {
     type: 'noul',

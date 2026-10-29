@@ -3,16 +3,15 @@ import { FALLBACK_PROFILE, PROFILE_MATCHER, profileFor } from '../agents/profile
 import { hintFor, intercepts, swapsProfile, type Offered } from '../agents/scope'
 import { EFFORTS, HOOK_BUDGET_MS, JEV_TIMEOUT_MS, MAX_AGENTS, PARALLELISM, PRICES, type Config, type Effort, type LogLevel, type Model } from '../config'
 import { decide, desiredEffort, projectEffort } from '../domain/policy'
-import type { Strings } from '../i18n'
 import type { JevAnswers } from '../jev/answers'
 import { askJev, JevError, type JevErrorKind } from '../jev/client'
 import { createLimiter } from '../jev/limiter'
+import { agentState, mainState, type JevState } from '../jev/state'
 import { jevNumbers, logDecision, type LogEntry, type LogIo } from '../log'
 import { addAgent, EMPTY_SAVINGS, formatStatus, TOTAL_KEY } from '../savings'
 import { ready, type Session } from '../session'
 import type { Savings } from '../../types/index'
 
-export const MAX_TASK_CHARS = 4000
 const MARKER = /^\[jev\]\s*/
 const DEFAULT_TYPE = 'general-purpose'
 // What the hook keeps of its budget beyond the queue wait and the JEV timeout.
@@ -50,8 +49,6 @@ async function track($: EngineInterface, config: Config, efforts: Efforts, chang
 type JevIo = Parameters<typeof askJev>[0]
 type HttpInit = Parameters<JevIo['http']['fetch']>[1]
 
-type JevTask = { tarefa: string; contexto: string }
-
 // The host follows $ only within this file, so askJev gets literal calls, not $ itself.
 const jevIo = ($: EngineInterface) =>
   ({
@@ -60,22 +57,19 @@ const jevIo = ($: EngineInterface) =>
     clock: { sleep: (ms: number) => $.clock.sleep(ms) },
   }) as JevIo
 
-// What JEV reads as the context of a main-loop prompt.
-const MAIN_CONTEXT = 'main session prompt: the user talking to the coding agent directly'
-
 // The host follows $ only within this file, so the log gets literal calls, not $ itself.
 // A failure toasts once per session (`warned`) and never reaches the routing.
-function logTo($: EngineInterface, s: Strings, level: LogLevel, warned: { log: boolean }, entry: LogEntry, request?: JevTask) {
+function logTo($: EngineInterface, { text, version }: Session, level: LogLevel, warned: { log: boolean }, entry: LogEntry, request?: JevState) {
   const io: LogIo = {
     home: () => $.env.get('HOME'),
     exists: (path) => $.fs.exists(path),
     read: (path) => $.fs.read(path),
     write: (path, text) => $.fs.write(path, text),
   }
-  logDecision(io, level, entry, request, () => {
+  logDecision(io, level, { ...entry, plugin_version: version }, request, () => {
     if (warned.log) return
     warned.log = true
-    $.ui.toast(s.toastLog)
+    $.ui.toast(text.s.toastLog)
   })
 }
 
@@ -115,6 +109,9 @@ export function routeAgentSpawns(on: On, config: Config, session: Session) {
   const efforts: Efforts = { user: '?', prompt: '?' }
   // mainEffort: JEV's effort for each main-loop turn, by turnId, until the turn completes.
   const mainEfforts = new Map<string, Effort>()
+  // The main loop's last answer, so JEV sees what a short follow-up ("yes", "explain more") refers to.
+  // ponytail: held per load; the first prompt after a reload goes without it
+  let lastAnswer: string | undefined
   // Waiting on the queue is the hook's own time (no $ call is in flight), and the JEV timeout is
   // a $.clock.sleep, paid from the budget too: the wait gets what is left of the budget after them.
   const maxQueueWaitMs = HOOK_BUDGET_MS - JEV_TIMEOUT_MS - QUEUE_MARGIN_MS
@@ -130,14 +127,14 @@ export function routeAgentSpawns(on: On, config: Config, session: Session) {
   on('turn.start', async ($, e, next) => {
     await ready($, session)
     if (!config.mainEffort || config.mode !== 'auto' || !e.text.trim()) return next(e)
-    const task = { tarefa: e.text.slice(0, MAX_TASK_CHARS), contexto: MAIN_CONTEXT }
+    const task = mainState(e.text, lastAnswer)
     const entry = { tool_use_id: e.turnId, description: e.text.slice(0, 80), models: [] }
     try {
-      const answers = await askJev(jevIo($), task, config)
+      const { answers, model } = await askJev(jevIo($), task, config)
       const effort = desiredEffort(answers)
       mainEfforts.set(e.turnId, effort)
-      const reasons = [`effort ${effort}: deliberation ${answers.deliberation.noul.toFixed(2)}`]
-      logTo($, text.s, config.logLevel, warned, { ...entry, outcome: 'main', effort, reasons, jev: jevNumbers(answers) }, task)
+      const reasons = [`effort ${effort}: deliberation ${answers.deliberation.score.toFixed(2)}`]
+      logTo($, session, config.logLevel, warned, { ...entry, outcome: 'main', effort, reasons, jev: jevNumbers(answers), jev_model: model }, task)
       await track($, config, efforts, (savings) => ({ ...savings, route: `${text.s.mainRoute}·${effort}`, jevCalls: savings.jevCalls + 1 }))
     } catch (err) {
       // The prompt keeps the user's effort; a missing key toasts once, as for the agents.
@@ -146,7 +143,7 @@ export function routeAgentSpawns(on: On, config: Config, session: Session) {
         warnedMissingKey = true
         $.ui.toast(text.s.toastMissingKey)
       }
-      logTo($, text.s, config.logLevel, warned, { ...entry, outcome: 'skip', reasons: [String(kind ?? err)], error: kind }, task)
+      logTo($, session, config.logLevel, warned, { ...entry, outcome: 'skip', reasons: [String(kind ?? err)], error: kind }, task)
     }
     return next(e)
   })
@@ -198,21 +195,22 @@ export function routeAgentSpawns(on: On, config: Config, session: Session) {
       routedIds.has(e.tool_use_id)
     if (untouched) return next(e)
     markRouted(e.tool_use_id)
+    const description = e.description.replace(MARKER, '')
 
     let routed: Routed
     let answers: JevAnswers | undefined
-    let asked: JevTask | undefined
+    let jevModel: string | undefined
+    let asked: JevState | undefined
     let error: JevErrorKind | undefined
     let fellBack = false
     try {
       if (active.size + reserved.size >= MAX_AGENTS) throw new Error('maxAgents')
       reserved.add(e.tool_use_id)
       if (!(await limiter.acquire((ms, signal) => $.clock.sleep(ms, { signal })))) throw new Error('parallelism')
-      const hint = hintFor(type, offered.get(type), config.agentHints)
-      const task = { tarefa: e.prompt.slice(0, MAX_TASK_CHARS), contexto: `${type}${hint ? ` (${hint})` : ''}: ${e.description}` }
+      const task = agentState(e.prompt, type, hintFor(type, offered.get(type), config.agentHints), description)
       asked = task
       try {
-        answers = await askJev(jevIo($), task, config)
+        ({ answers, model: jevModel } = await askJev(jevIo($), task, config))
       } finally {
         limiter.release()
       }
@@ -228,10 +226,9 @@ export function routeAgentSpawns(on: On, config: Config, session: Session) {
       routed = fallback(error ?? (err instanceof Error ? err.message : String(err)))
     }
 
-    const description = e.description.replace(MARKER, '')
-    const models = routed.verifier ? [routed.model, routed.verifier] : [routed.model]
+    const models =routed.verifier ? [routed.model, routed.verifier] : [routed.model]
     const jev = answers && jevNumbers(answers)
-    logTo($, text.s, config.logLevel, warned, { tool_use_id: e.tool_use_id, description, outcome: fellBack ? 'fallback' : 'routed', models, effort: routed.effort, profile: routed.profile, reasons: routed.reasons, jev, error }, asked)
+    logTo($, session, config.logLevel, warned, { tool_use_id: e.tool_use_id, description, outcome: fellBack ? 'fallback' : 'routed', models, effort: routed.effort, profile: routed.profile, reasons: routed.reasons, jev, jev_model: jevModel, error }, asked)
     const route = fellBack ? `${text.s.fallback} (${routed.reasons[0]})` : `${routed.model}·${routed.effort}·${routed.profile.replace(PROFILE_MATCHER, '')}`
     await track($, config, efforts, (savings) => ({ ...savings, route, jevCalls: savings.jevCalls + (answers ? 1 : 0) }))
 
@@ -272,8 +269,15 @@ export function routeAgentSpawns(on: On, config: Config, session: Session) {
     return spawned
   })
 
+  // A /clear or a resume starts another conversation: its first prompt follows no answer.
+  on('session.end', (_$, e, next) => ((lastAnswer = undefined), next(e)))
+
   on('turn.complete', async ($, e, next) => {
-    if (e.agentId === undefined) return (mainEfforts.delete(e.turnId), next(e))
+    if (e.agentId === undefined) {
+      if (e.answer.trim()) lastAnswer = e.answer
+      mainEfforts.delete(e.turnId)
+      return next(e)
+    }
     // ponytail: a background agent woken again runs more turns; it is freed and costed at the first turn.complete only; revisit if the host exposes an agent-ended event
     active.delete(e.agentId)
     const cost = costed.get(e.agentId)
@@ -302,7 +306,7 @@ export function routeAgentSpawns(on: On, config: Config, session: Session) {
           active.add(spawned.agentId)
           costed.set(spawned.agentId, { routed: verifier, isVerifier: true })
         }
-        logTo($, text.s, config.logLevel, warned, { tool_use_id, description, outcome: 'verifier', models: [verifier], profile: VERIFY_PROFILE, reasons: [] })
+        logTo($, session, config.logLevel, warned, { tool_use_id, description, outcome: 'verifier', models: [verifier], profile: VERIFY_PROFILE, reasons: [] })
       } finally {
         dispatching.set(VERIFY_PROFILE, dispatching.get(VERIFY_PROFILE)! - 1)
       }

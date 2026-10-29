@@ -171,9 +171,10 @@ Plugin messages (toasts, `/jev-orc` replies, and status line words) follow the C
 | `models` | models (the second is the verifier, if any) |
 | `effort`, `profile` | applied decision |
 | `reasons` | why each choice was made |
-| `jev` | raw JEV numbers (scores, `*_confidence`, `deliberation`) |
+| `jev` | raw JEV numbers: each score, its `*_confidence` and the chance of each level (`*_p0`, `*_p1`, ...), and each yes/no answer |
+| `jev_model`, `plugin_version` | the JEV version that answered (e.g. `jev-1.14.0`) and this plugin's version: a calibration keeps to one of each |
 | `error` | `missing_key`, `timeout`, `network`, `bad_payload`, or `http_<status>` |
-| `jev_request` | only with `logLevel=debug`: task truncated to 200 characters, and context |
+| `jev_request` | only with `logLevel=debug`: the fields sent to JEV, with the task and the agent's last reply cut to 200 characters |
 
 Never written: the API key, the full prompt, messages, and tool results.
 Rotation: past 1 MiB, the file becomes `decisions.1.jsonl` (one generation). `logLevel=off`
@@ -188,27 +189,30 @@ The log lives outside the repo and is not versioned (`.gitignore`: `decisions*.j
 
 ## Multi-model (optional)
 
-Off by default (`multiModel=false`). When on, a verifier reviews the
-answer when the complexity is opus-level and JEV's confidence is below 0.5. The verifier runs in
-the read-only profile `jev-orchestrator:t-read`. During validation, the 0.5 confidence cutoff was
-almost never reached (confidence ≥ 0.69 even for vague requests), so the verifier did not fire.
-Recalibration will be done with log data (user's decision).
+Off by default (`multiModel=false`). When on, a verifier reviews the answer when JEV picked opus
+because the open-design complexity level is likely (chance ≥ 0.4) but not settled (below 0.7).
+The verifier runs in the read-only profile `jev-orchestrator:t-read`. The cutoffs are not
+calibrated yet; recalibration will be done with log data (user's decision).
 
 ## Main prompt effort (optional)
 
 Off by default (`mainEffort=false`). The routing above applies to subagents only; your own prompts
 run on the session model with your effort. When on (and `mode=auto`), each typed prompt goes to
-JEV first and its effort becomes the one JEV picked (deliberation), capped by `maxEffort`. The model never changes: switching it mid-conversation would throw away the
+JEV first and its effort becomes the one JEV picked (deliberation), capped by `maxEffort`. JEV also reads the agent's last reply, so a short follow-up ("yes", "explain more") is judged by what it picks up. The model never changes: switching it mid-conversation would throw away the
 prompt cache. It costs one JEV call, and up to 8 s of wait, before each prompt. The
 status line shows `prompt·<effort>` and the log an entry with `"outcome":"main"`; without JEV the
 prompt keeps your effort.
 
 ## Privacy
 
-For each routed subagent spawn (and each prompt, with `mainEffort` on) the task text, cut to 4000
-characters, is sent to the JEV endpoint (`jevEndpoint`: TypeSafe, or OpenRouter). Nothing else
-leaves your machine. The key is kept in the system secure storage. The local decision log holds
-the task only with `logLevel=debug` (cut to 200 characters); `logLevel=off` writes nothing. The agent's name and a short description of it (your `agentHints`, else the one Claude Code gives it, cut to 120 characters) go along with the task.
+For each routed subagent spawn (and each prompt, with `mainEffort` on) the task text is sent to
+the JEV endpoint (`jevEndpoint`: TypeSafe, or OpenRouter); past 4000 characters it keeps the start
+and the end and drops the middle. The agent's name and a short description of it (your
+`agentHints`, else the one Claude Code gives it, cut to 120 characters) go along with a subagent's
+task. With `mainEffort` on, the agent's last reply goes along with your prompt, cut the same way
+to 1500 characters. Nothing else leaves your machine. The key is kept in the system secure
+storage. The local decision log holds these texts only with `logLevel=debug` (cut to 200
+characters); `logLevel=off` writes nothing.
 
 ## Contributing
 
