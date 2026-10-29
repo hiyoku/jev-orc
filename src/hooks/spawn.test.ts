@@ -3,7 +3,8 @@ import { expect, mock, test as baseTest, type Engine } from 'claude-code/testing
 import { FALLBACK_PROFILE } from '../agents/profiles'
 import { LOG_PATH } from '../log'
 import { MAX_AGENTS, PARALLELISM } from '../config'
-import { isOwnSpawn, MAX_TASK_CHARS, TOTAL_KEY } from './spawn'
+import { TOTAL_KEY } from '../savings'
+import { isOwnSpawn, MAX_TASK_CHARS } from './spawn'
 
 // The world's status line is plain, so the strings below stay as they were; a test's own options win.
 const test: typeof baseTest = ((name: string, a: any, b?: any) =>

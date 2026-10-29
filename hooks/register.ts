@@ -3,8 +3,8 @@ import { COMMAND_NAME, changedMessage, deniedMessage, parseJevOrcArgs, statusMes
 import { buildProfiles } from '../src/agents/profiles'
 import { loadConfig } from '../src/config'
 import { STRINGS, formatWarning, resolveLanguage, type Strings } from '../src/i18n'
-import { EMPTY_SAVINGS, formatStatus } from '../src/savings'
-import { routeAgentSpawns, TOTAL_KEY } from '../src/hooks/spawn'
+import { EMPTY_SAVINGS, TOTAL_KEY, formatStatus } from '../src/savings'
+import { routeAgentSpawns } from '../src/hooks/spawn'
 import type { Savings } from '../types/index'
 
 export const register: Register = (on, options) => {

@@ -10,6 +10,8 @@ export type Usage = {
 }
 
 export const EMPTY_SAVINGS: Savings = { agents: 0, tokens: 0, cost: 0, estimated: 0, jevCalls: 0, parent: '?', route: '' }
+// The $.store key of every session's savings summed.
+export const TOTAL_KEY = 'totalSavings'
 
 const PER_MTOK = 1_000_000
 

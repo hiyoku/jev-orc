@@ -8,7 +8,7 @@ import type { JevAnswers } from '../jev/answers'
 import { askJev, JevError, type JevErrorKind } from '../jev/client'
 import { createLimiter } from '../jev/limiter'
 import { jevNumbers, logDecision, type LogEntry, type LogIo } from '../log'
-import { addAgent, EMPTY_SAVINGS, formatStatus } from '../savings'
+import { addAgent, EMPTY_SAVINGS, formatStatus, TOTAL_KEY } from '../savings'
 import type { Savings } from '../../types/index'
 
 export const MAX_TASK_CHARS = 4000
@@ -23,8 +23,6 @@ const VERIFY_INSTRUCTION =
 
 // Literal, as $.state needs: the savings of this session, kept by the host across a module reload.
 const SAVINGS = { plugin: 'jev-orchestrator', key: 'savings' } as const
-// The $.store key of every session's savings summed.
-export const TOTAL_KEY = 'totalSavings'
 // The same total in $.state, where other plugins can read it.
 const TOTAL = { plugin: 'jev-orchestrator', key: 'total' } as const
 
