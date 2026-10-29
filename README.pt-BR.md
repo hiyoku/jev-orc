@@ -105,6 +105,7 @@ Ligar e desligar pelo comando `/jev-orc`:
 | `/jev-orc` | alterna `auto` ⇄ `off` (de `explicit` vai para `off`) |
 | `/jev-orc on` / `off` / `explicit` | grava `auto` / `off` / `explicit` |
 | `/jev-orc status` | mostra o modo e a status line, sem gravar |
+| `/jev-orc history` | lista a economia das últimas 10 sessões, da mais recente; o histórico fica guardado entre sessões |
 
 Para escolher `model`/`effort` à mão, desligue com `/jev-orc off`; vale a partir do próximo spawn.
 
