@@ -45,6 +45,12 @@ test('read-only profiles say so in the prompt', () => {
   expect(specs.find((s) => s.name === 't-read-edit')!.prompt).not.toContain('read-only')
 })
 
+test('shell profiles without edit tools run the commands the task asks for', () => {
+  const prompt = buildProfiles().find((s) => s.name === 't-read-shell')!.prompt
+  expect(prompt).toContain('git and gh included')
+  expect(prompt).not.toContain('read-only')
+})
+
 test('fallback has every group', () => {
   expect(FALLBACK_PROFILE).toBe('jev-orchestrator:fallback')
   expect(buildProfiles().at(-1)!.tools).toContain('mcp__claude-in-chrome__*')

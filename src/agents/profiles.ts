@@ -17,6 +17,8 @@ const BASE_PROMPT = [
   'In your final report, state what you found or did, cite file:line for every claim, and say how you verified it.',
 ].join(' ')
 const READ_ONLY_PROMPT = 'You are read-only: you cannot modify files. Never try to; report findings instead.'
+// Shell without edit tools: the git, gh, test and script commands a task asks for must still run.
+const SHELL_PROMPT = 'You have no edit tools: do not change file contents yourself, but run every shell command the task asks for, git and gh included.'
 
 // One profile per combination of tool groups, plus the fallback with every group.
 export function buildProfiles(): AgentSpec[] {
@@ -43,7 +45,8 @@ function nameOf(groups: readonly ToolGroup[]): string {
 const toolsOf = (groups: readonly ToolGroup[]): string[] => [...new Set(groups.flatMap((group) => GROUP_PATTERNS[group]))]
 
 function promptFor(tools: readonly string[]): string {
-  const writes = tools.some((tool) => GROUP_PATTERNS.edit.includes(tool))
-  return writes ? BASE_PROMPT : `${BASE_PROMPT} ${READ_ONLY_PROMPT}`
+  const has = (group: ToolGroup) => tools.some((tool) => GROUP_PATTERNS[group].includes(tool))
+  if (has('edit')) return BASE_PROMPT
+  return `${BASE_PROMPT} ${has('shell') ? SHELL_PROMPT : READ_ONLY_PROMPT}`
 }
 
