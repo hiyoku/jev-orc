@@ -25,6 +25,8 @@ const VERIFY_INSTRUCTION =
 const SAVINGS = { plugin: 'jev-orchestrator', key: 'savings' } as const
 // The $.store key of every session's savings summed.
 export const TOTAL_KEY = 'totalSavings'
+// The same total in $.state, where other plugins can read it.
+const TOTAL = { plugin: 'jev-orchestrator', key: 'total' } as const
 
 // user: what the main loop's last request asked for (the counterfactual); prompt: what it ran with.
 type Efforts = { user: string; prompt: string }
@@ -40,8 +42,9 @@ async function track($: EngineInterface, config: Config, efforts: Efforts, chang
     try {
       total = change(((await $.store.get(TOTAL_KEY)) as Savings | undefined) ?? EMPTY_SAVINGS)
       await $.store.set(TOTAL_KEY, total)
+      await $.state.set(TOTAL, total)
     } catch {} // no store: the session's line alone
-    $.ui.status(formatStatus(savings, config.mode, { userEffort: efforts.user, total, promptEffort: efforts.prompt, style: config.statusStyle, compare: config.compareModel }))
+    if (config.showStatus) $.ui.status(formatStatus(savings, config.mode, { userEffort: efforts.user, total, promptEffort: efforts.prompt, style: config.statusStyle, compare: config.compareModel }))
   } catch {}
 }
 

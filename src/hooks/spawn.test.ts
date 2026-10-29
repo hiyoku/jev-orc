@@ -432,6 +432,15 @@ test('a routed agent turn adds its usage, priced at its model against the parent
   expect(w.statuses.at(-1)).toBe('jev ON · haiku·low·t-read · 42k tok $0.005 · vs haiku/? ~$0.005 (0%) · total $0.005 (0%)')
 })
 
+test('showStatus false: no status line, the mode and the total still reach $.state', { options: { showStatus: false } }, async ($, on) => {
+  const w = await world($, on)
+  await callAgent($, agent('s1'))
+  await $.turn.complete({ ...done, agentId: 'a-s1', usage: { ...usage, model: 'claude-haiku-5-5' } })
+  expect(w.statuses).toEqual([])
+  expect(w.state.get('mode')?.value).toBe('auto')
+  expect(w.state.get('total')?.value).toMatchObject({ agents: 1, cost: 0.005 })
+})
+
 test('statusStyle nerd: the last status carries the icons', { options: { statusStyle: 'nerd' } }, async ($, on) => {
   const w = await world($, on)
   await callAgent($, agent('n1'))

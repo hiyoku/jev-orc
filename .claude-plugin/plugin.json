@@ -54,6 +54,12 @@
       "default": "nerd",
       "options": ["nerd", "plain"]
     },
+    "showStatus": {
+      "type": "boolean",
+      "title": "Show status line",
+      "description": "Draw the JEV status line. Off: the savings stay in the plugin state for another plugin to draw.",
+      "default": true
+    },
     "maxModel": {
       "type": "string",
       "title": "Max model",

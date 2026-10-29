@@ -14,6 +14,12 @@ export type Savings = {
 
 declare module 'claude-code' {
   interface PluginState {
-    'jev-orchestrator': { savings: Savings }
+    'jev-orchestrator': {
+      savings: Savings
+      /** The mode this load runs in, for other plugins to read. */
+      mode: 'auto' | 'off' | 'explicit'
+      /** Every session's savings summed: a copy of the $.store total other plugins can read. */
+      total: Savings
+    }
   }
 }
