@@ -173,6 +173,7 @@ As mensagens do plugin (toasts, respostas do `/jev-orc` e palavras da status lin
 | `effort`, `profile` | decisão aplicada |
 | `reasons` | por que cada escolha foi feita |
 | `jev` | números crus do JEV: cada score, o seu `*_confidence` e a chance de cada nível (`*_p0`, `*_p1`, ...), e cada resposta de sim/não |
+| `jev_model`, `plugin_version` | a versão do JEV que respondeu (ex.: `jev-1.14.0`) e a versão deste plugin: uma calibração usa uma de cada |
 | `error` | `missing_key`, `timeout`, `network`, `bad_payload` ou `http_<status>` |
 | `jev_request` | só com `logLevel=debug`: os campos enviados ao JEV, com a tarefa e a última resposta do agente cortadas em 200 caracteres |
 

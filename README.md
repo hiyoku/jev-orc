@@ -172,6 +172,7 @@ Plugin messages (toasts, `/jev-orc` replies, and status line words) follow the C
 | `effort`, `profile` | applied decision |
 | `reasons` | why each choice was made |
 | `jev` | raw JEV numbers: each score, its `*_confidence` and the chance of each level (`*_p0`, `*_p1`, ...), and each yes/no answer |
+| `jev_model`, `plugin_version` | the JEV version that answered (e.g. `jev-1.14.0`) and this plugin's version: a calibration keeps to one of each |
 | `error` | `missing_key`, `timeout`, `network`, `bad_payload`, or `http_<status>` |
 | `jev_request` | only with `logLevel=debug`: the fields sent to JEV, with the task and the agent's last reply cut to 200 characters |
 

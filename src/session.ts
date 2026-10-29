@@ -15,6 +15,8 @@ export type Session = {
   registered: Set<string>
   // English until the setup resolves the language.
   text: { s: Strings }
+  // plugin.json's version, read by the setup: $.plugin carries only the name and the root.
+  version?: string
   loaded?: Promise<void>
 }
 
@@ -31,7 +33,12 @@ export function ready($: EngineInterface, session: Session): Promise<void> {
   return (session.loaded ??= setUp($, session))
 }
 
-async function setUp($: EngineInterface, { config, options, warnings, registered, text }: Session): Promise<void> {
+async function setUp($: EngineInterface, session: Session): Promise<void> {
+  const { config, options, warnings, registered, text } = session
+  try {
+    const { version } = JSON.parse(await $.fs.read(`${$.plugin.root}/.claude-plugin/plugin.json`))
+    if (typeof version === 'string') session.version = version
+  } catch {} // no manifest: the log goes without the version
   let settingsLanguage: unknown
   let locale: string | undefined
   try {

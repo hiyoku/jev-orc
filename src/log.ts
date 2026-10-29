@@ -26,6 +26,9 @@ export type LogEntry = {
   profile?: string
   reasons: string[]
   jev?: Record<string, number>
+  // Which JEV answered and which plugin asked: a calibration keeps to one of each.
+  jev_model?: string
+  plugin_version?: string
   error?: JevErrorKind
 }
 

@@ -3,7 +3,6 @@ import { FALLBACK_PROFILE, PROFILE_MATCHER, profileFor } from '../agents/profile
 import { hintFor, intercepts, swapsProfile, type Offered } from '../agents/scope'
 import { EFFORTS, HOOK_BUDGET_MS, JEV_TIMEOUT_MS, MAX_AGENTS, PARALLELISM, PRICES, type Config, type Effort, type LogLevel, type Model } from '../config'
 import { decide, desiredEffort, projectEffort } from '../domain/policy'
-import type { Strings } from '../i18n'
 import type { JevAnswers } from '../jev/answers'
 import { askJev, JevError, type JevErrorKind } from '../jev/client'
 import { createLimiter } from '../jev/limiter'
@@ -60,17 +59,17 @@ const jevIo = ($: EngineInterface) =>
 
 // The host follows $ only within this file, so the log gets literal calls, not $ itself.
 // A failure toasts once per session (`warned`) and never reaches the routing.
-function logTo($: EngineInterface, s: Strings, level: LogLevel, warned: { log: boolean }, entry: LogEntry, request?: JevState) {
+function logTo($: EngineInterface, { text, version }: Session, level: LogLevel, warned: { log: boolean }, entry: LogEntry, request?: JevState) {
   const io: LogIo = {
     home: () => $.env.get('HOME'),
     exists: (path) => $.fs.exists(path),
     read: (path) => $.fs.read(path),
     write: (path, text) => $.fs.write(path, text),
   }
-  logDecision(io, level, entry, request, () => {
+  logDecision(io, level, { ...entry, plugin_version: version }, request, () => {
     if (warned.log) return
     warned.log = true
-    $.ui.toast(s.toastLog)
+    $.ui.toast(text.s.toastLog)
   })
 }
 
@@ -137,11 +136,11 @@ export function routeAgentSpawns(on: On, config: Config, session: Session) {
     const task = mainState(e.text, await lastReply($))
     const entry = { tool_use_id: e.turnId, description: e.text.slice(0, 80), models: [] }
     try {
-      const answers = await askJev(jevIo($), task, config)
+      const { answers, model } = await askJev(jevIo($), task, config)
       const effort = desiredEffort(answers)
       mainEfforts.set(e.turnId, effort)
       const reasons = [`effort ${effort}: deliberation ${answers.deliberation.score.toFixed(2)}`]
-      logTo($, text.s, config.logLevel, warned, { ...entry, outcome: 'main', effort, reasons, jev: jevNumbers(answers) }, task)
+      logTo($, session, config.logLevel, warned, { ...entry, outcome: 'main', effort, reasons, jev: jevNumbers(answers), jev_model: model }, task)
       await track($, config, efforts, (savings) => ({ ...savings, route: `${text.s.mainRoute}·${effort}`, jevCalls: savings.jevCalls + 1 }))
     } catch (err) {
       // The prompt keeps the user's effort; a missing key toasts once, as for the agents.
@@ -150,7 +149,7 @@ export function routeAgentSpawns(on: On, config: Config, session: Session) {
         warnedMissingKey = true
         $.ui.toast(text.s.toastMissingKey)
       }
-      logTo($, text.s, config.logLevel, warned, { ...entry, outcome: 'skip', reasons: [String(kind ?? err)], error: kind }, task)
+      logTo($, session, config.logLevel, warned, { ...entry, outcome: 'skip', reasons: [String(kind ?? err)], error: kind }, task)
     }
     return next(e)
   })
@@ -206,6 +205,7 @@ export function routeAgentSpawns(on: On, config: Config, session: Session) {
 
     let routed: Routed
     let answers: JevAnswers | undefined
+    let jevModel: string | undefined
     let asked: JevState | undefined
     let error: JevErrorKind | undefined
     let fellBack = false
@@ -216,7 +216,7 @@ export function routeAgentSpawns(on: On, config: Config, session: Session) {
       const task = agentState(e.prompt, type, hintFor(type, offered.get(type), config.agentHints), description)
       asked = task
       try {
-        answers = await askJev(jevIo($), task, config)
+        ({ answers, model: jevModel } = await askJev(jevIo($), task, config))
       } finally {
         limiter.release()
       }
@@ -234,7 +234,7 @@ export function routeAgentSpawns(on: On, config: Config, session: Session) {
 
     const models =routed.verifier ? [routed.model, routed.verifier] : [routed.model]
     const jev = answers && jevNumbers(answers)
-    logTo($, text.s, config.logLevel, warned, { tool_use_id: e.tool_use_id, description, outcome: fellBack ? 'fallback' : 'routed', models, effort: routed.effort, profile: routed.profile, reasons: routed.reasons, jev, error }, asked)
+    logTo($, session, config.logLevel, warned, { tool_use_id: e.tool_use_id, description, outcome: fellBack ? 'fallback' : 'routed', models, effort: routed.effort, profile: routed.profile, reasons: routed.reasons, jev, jev_model: jevModel, error }, asked)
     const route = fellBack ? `${text.s.fallback} (${routed.reasons[0]})` : `${routed.model}·${routed.effort}·${routed.profile.replace(PROFILE_MATCHER, '')}`
     await track($, config, efforts, (savings) => ({ ...savings, route, jevCalls: savings.jevCalls + (answers ? 1 : 0) }))
 
@@ -305,7 +305,7 @@ export function routeAgentSpawns(on: On, config: Config, session: Session) {
           active.add(spawned.agentId)
           costed.set(spawned.agentId, { routed: verifier, isVerifier: true })
         }
-        logTo($, text.s, config.logLevel, warned, { tool_use_id, description, outcome: 'verifier', models: [verifier], profile: VERIFY_PROFILE, reasons: [] })
+        logTo($, session, config.logLevel, warned, { tool_use_id, description, outcome: 'verifier', models: [verifier], profile: VERIFY_PROFILE, reasons: [] })
       } finally {
         dispatching.set(VERIFY_PROFILE, dispatching.get(VERIFY_PROFILE)! - 1)
       }

@@ -82,14 +82,15 @@ async function world($: Engine, on: On, opts: World = {}) {
   on('store.get', (_, e) => ({ value: store.get(e.key) }))
   on('store.set', (_, e) => (store.set(e.key, e.value), { value: undefined }))
   on('fs.exists', (_, e) => ({ value: files.has(e.path) }))
-  on('fs.read', (_, e) => ({ value: files.get(e.path)! }))
+  // The plugin's manifest, wherever the host puts the plugin's root.
+  on('fs.read', (_, e) => ({ value: e.path.endsWith('/.claude-plugin/plugin.json') ? '{"version":"9.9.9"}' : files.get(e.path)! }))
   on('fs.write', (_, e) => (files.set(e.path, e.text), { value: undefined }))
   on('http.fetch', async (_, e) => {
     const body = JSON.parse(e.init?.body ?? '{}') as JevBody
     bodies.push(body)
     auths.push(e.init?.headers?.Authorization)
     const answers = await (opts.jev ?? (() => READ_ONLY))(body)
-    return { value: { status: 200, ok: true, headers: {}, text: JSON.stringify({ answers }) } }
+    return { value: { status: 200, ok: true, headers: {}, text: JSON.stringify({ model: 'jev-test', answers }) } }
   })
   on('tool.call', async (_, e) => {
     const a = e as unknown as Agent
@@ -376,7 +377,8 @@ test('one log line per routed spawn, and the status names the routing', async ($
   expect(lines).toHaveLength(1)
   expect(lines[0]).toMatchObject({
     tool_use_id: 'l1', description: 'read file', outcome: 'routed', models: ['haiku'], effort: 'low',
-    profile: 'jev-orchestrator:t-read', jev: { complexity: 0.2, complexity_confidence: 0.9, deliberation: 0 },
+    profile: 'jev-orchestrator:t-read', jev: { complexity: 0.2, complexity_confidence: 0.9, complexity_p0: 0.8, deliberation: 0 },
+    jev_model: 'jev-test', plugin_version: '9.9.9',
   })
   expect(w.statuses.at(-1)).toBe('jev ON · haiku·low·t-read')
 })
