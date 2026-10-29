@@ -3,7 +3,9 @@ import { expect, mock, test as baseTest, type Engine } from 'claude-code/testing
 import { FALLBACK_PROFILE } from '../agents/profiles'
 import { LOG_PATH } from '../log'
 import { MAX_AGENTS, PARALLELISM } from '../config'
-import { isOwnSpawn, MAX_TASK_CHARS, TOTAL_KEY } from './spawn'
+import { STRINGS } from '../i18n'
+import { TOTAL_KEY } from '../savings'
+import { isOwnSpawn, MAX_TASK_CHARS } from './spawn'
 
 // The world's status line is plain, so the strings below stay as they were; a test's own options win.
 const test: typeof baseTest = ((name: string, a: any, b?: any) =>
@@ -34,6 +36,8 @@ type World = {
   env?: Record<string, string>
   jev?: (body: JevBody) => Promise<unknown> | unknown
   unregistered?: string
+  // false: the plugin loads without session.start, as after a reload (an option change)
+  start?: boolean
 }
 
 const spawnInput = (a: Agent, extra: Partial<AgentSpawnInput> = {}): AgentSpawnInput => ({
@@ -98,7 +102,7 @@ async function world($: Engine, on: On, opts: World = {}) {
     spawns.push(e)
     return { model: e.model ?? 'inherit', agentId: `a-${e.tool_use_id}` }
   })
-  await $.session.start(START)
+  if (opts.start !== false) await $.session.start(START)
   const logLines = () => (files.get(`${HOME}/${LOG_PATH}`) ?? '').split('\n').filter(Boolean).map((l) => JSON.parse(l))
   return { tools, spawns, toasts, bodies, auths, registers, clock, files, statuses, logLines, state, store }
 }
@@ -436,18 +440,32 @@ test('showStatus false: no status line, the mode and the total still reach $.sta
   const w = await world($, on)
   await callAgent($, agent('s1'))
   await $.turn.complete({ ...done, agentId: 'a-s1', usage: { ...usage, model: 'claude-haiku-5-5' } })
-  // no turn started: nothing draws, nothing clears
-  expect(w.statuses).toEqual([])
+  // the load clears a line an earlier load drew; nothing draws one after
+  expect(w.statuses).toEqual([undefined])
   expect(w.state.get('mode')?.value).toBe('auto')
   expect(w.state.get('total')?.value).toMatchObject({ agents: 1, cost: 0.005 })
 })
 
-test('showStatus false: the first turn of a load clears the line, once', { options: { showStatus: false } }, async ($, on) => {
+test('showStatus false: a reload clears the line at its first turn, once', { options: { showStatus: false } }, async ($, on) => {
   on('turn.start', (_, e) => ({ turnId: e.turnId }))
-  const w = await world($, on)
+  const w = await world($, on, { start: false })
   await $.turn.start({ text: 'hi', turnId: 'c1' })
   await $.turn.start({ text: 'hi', turnId: 'c2' })
   expect(w.statuses).toEqual([undefined])
+})
+
+test('a reload registers the profiles at its first Agent call', async ($, on) => {
+  const w = await world($, on, { start: false })
+  expect(w.registers).toEqual([])
+  await callAgent($, agent('r1'))
+  expect(w.registers.length).toBeGreaterThan(0)
+  expect(w.spawns[0].subagentType).toBe('jev-orchestrator:t-read')
+})
+
+test('a reload speaks the session language at its first Agent call', async ($, on) => {
+  const w = await world($, on, { start: false, env: { LANG: 'pt_BR.UTF-8' } })
+  await callAgent($, agent('r2'))
+  expect(w.toasts).toContain(STRINGS['pt-BR'].toastMissingKey)
 })
 
 test('the key status names its source and never holds the key', async ($, on) => {
