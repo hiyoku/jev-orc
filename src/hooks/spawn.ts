@@ -74,6 +74,15 @@ function logTo($: EngineInterface, s: Strings, level: LogLevel, warned: { log: b
   })
 }
 
+// The agent's last reply, so JEV sees what a short follow-up ("yes", "explain more") refers to.
+async function lastReply($: EngineInterface): Promise<string | undefined> {
+  try {
+    return (await $.session.messages()).findLast((m) => m.role === 'assistant' && m.text.trim() !== '')?.text
+  } catch {
+    return undefined
+  }
+}
+
 // A spawn this plugin caused, or one already on a profile of it, is never routed again.
 export const isOwnSpawn = (originPlugin: string, self: string, type: string) =>
   originPlugin === self || PROFILE_MATCHER.test(type)
@@ -125,7 +134,7 @@ export function routeAgentSpawns(on: On, config: Config, session: Session) {
   on('turn.start', async ($, e, next) => {
     await ready($, session)
     if (!config.mainEffort || config.mode !== 'auto' || !e.text.trim()) return next(e)
-    const task = mainState(e.text)
+    const task = mainState(e.text, await lastReply($))
     const entry = { tool_use_id: e.turnId, description: e.text.slice(0, 80), models: [] }
     try {
       const answers = await askJev(jevIo($), task, config)
