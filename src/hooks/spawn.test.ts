@@ -436,7 +436,8 @@ test('showStatus false: no status line, the mode and the total still reach $.sta
   const w = await world($, on)
   await callAgent($, agent('s1'))
   await $.turn.complete({ ...done, agentId: 'a-s1', usage: { ...usage, model: 'claude-haiku-5-5' } })
-  expect(w.statuses).toEqual([])
+  // session.start clears a line an earlier load drew; nothing draws one after
+  expect(w.statuses).toEqual([undefined])
   expect(w.state.get('mode')?.value).toBe('auto')
   expect(w.state.get('total')?.value).toMatchObject({ agents: 1, cost: 0.005 })
 })
