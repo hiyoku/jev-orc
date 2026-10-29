@@ -20,8 +20,8 @@ type Mode = 'auto' | 'off' | 'explicit'
 export const STRINGS = {
   en: {
     fallback: 'fallback',
-    commandDescription: 'Turns JEV routing on/off (on, off, explicit, status)',
-    usage: 'usage: /jev-orc [on|off|explicit|status]',
+    commandDescription: 'Turns JEV routing on/off (on, off, explicit, status, history)',
+    usage: 'usage: /jev-orc [on|off|explicit|status|history]',
     invalidArg: (arg: string) => `jev-orc: invalid argument "${arg}"`,
     modeNote: {
       auto: 'routing on',
@@ -30,6 +30,8 @@ export const STRINGS = {
     } as Record<Mode, string>,
     changed: (from: Mode, to: Mode, note: string) => (from === to ? `jev-orc: already ${to} (${note})` : `jev-orc: ${from} → ${to} (${note})`),
     status: (mode: Mode, line: string) => `jev-orc: ${mode} · ${line}`,
+    historyTitle: 'jev-orc: savings of the last sessions, newest first',
+    historyEmpty: 'jev-orc: no session with routed agents yet',
     denied: (reason: string) => `jev-orc: could not change the mode (${reason}); nothing was changed`,
     toastProfile: (name: string, reason: string) => `JEV: profile ${name} not registered: ${reason}`,
     toastMissingKey:
@@ -47,8 +49,8 @@ export const STRINGS = {
   },
   'pt-BR': {
     fallback: 'fallback',
-    commandDescription: 'Liga/desliga o roteamento do JEV (on, off, explicit, status)',
-    usage: 'uso: /jev-orc [on|off|explicit|status]',
+    commandDescription: 'Liga/desliga o roteamento do JEV (on, off, explicit, status, history)',
+    usage: 'uso: /jev-orc [on|off|explicit|status|history]',
     invalidArg: (arg: string) => `jev-orc: argumento inválido "${arg}"`,
     modeNote: {
       auto: 'roteamento ligado',
@@ -57,6 +59,8 @@ export const STRINGS = {
     } as Record<Mode, string>,
     changed: (from: Mode, to: Mode, note: string) => (from === to ? `jev-orc: já está em ${to} (${note})` : `jev-orc: ${from} → ${to} (${note})`),
     status: (mode: Mode, line: string) => `jev-orc: ${mode} · ${line}`,
+    historyTitle: 'jev-orc: economia das últimas sessões, da mais recente',
+    historyEmpty: 'jev-orc: nenhuma sessão com agentes roteados ainda',
     denied: (reason: string) => `jev-orc: não foi possível mudar o modo (${reason}); nada foi alterado`,
     toastProfile: (name: string, reason: string) => `JEV: perfil ${name} não registrado: ${reason}`,
     toastMissingKey:
