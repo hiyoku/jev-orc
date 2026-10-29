@@ -1,6 +1,6 @@
 {
   "name": "jev-orchestrator",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "license": "MIT",
   "description": "Routes Agent spawns through JEV (TypeSafe)",
   "author": { "name": "Hideki Inoue" },
@@ -53,6 +53,12 @@
       "description": "nerd: Nerd Font icons (needs a Nerd Font in the terminal); plain: text only.",
       "default": "nerd",
       "options": ["nerd", "plain"]
+    },
+    "showStatus": {
+      "type": "boolean",
+      "title": "Show status line",
+      "description": "Draw the JEV status line. Off: the savings stay in the plugin state for another plugin to draw.",
+      "default": true
     },
     "maxModel": {
       "type": "string",

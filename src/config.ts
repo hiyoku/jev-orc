@@ -41,6 +41,8 @@ export type Config = {
   compareModel: CompareModel
   // nerd: Nerd Font icons; plain: text only.
   statusStyle: StatusStyle
+  // false: no status line; another plugin draws the savings from $.state.
+  showStatus: boolean
   // Which agents the routing touches: builtin (Claude Code's own) or all (plus .claude/agents and plugins').
   agentScope: Scope
   // Per-agent text JEV reads beside the name; the host's listing line when none.
@@ -78,6 +80,7 @@ const DEFAULTS = {
   logLevel: 'info',
   compareModel: 'auto',
   statusStyle: 'nerd',
+  showStatus: true,
   agentScope: 'builtin',
 } as const
 
@@ -115,6 +118,7 @@ export function loadConfig(options: PluginOptions): LoadedConfig {
     logLevel: oneOf('logLevel', LOG_LEVELS, DEFAULTS.logLevel),
     compareModel: oneOf('compareModel', COMPARE_MODELS, DEFAULTS.compareModel),
     statusStyle: oneOf('statusStyle', STATUS_STYLES, DEFAULTS.statusStyle),
+    showStatus: boolean('showStatus', DEFAULTS.showStatus),
     agentScope: oneOf('agentScope', SCOPES, DEFAULTS.agentScope),
     agentHints: parseHints(options.agentHints),
   }

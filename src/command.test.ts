@@ -33,11 +33,13 @@ async function host($: Engine, on: On, deny?: string, env: Record<string, string
   const sets: { key: string; value: unknown }[] = []
   const statuses: (string | undefined)[] = []
   const commands: string[] = []
+  const states = new Map<string, unknown>()
   mock.env(on, { HOME: '/home/u', ...env })
   on('session.start', (_, e) => e)
   on('agent.register', (_, spec) => ({ value: { agent: `jev-orchestrator:${spec.name}` } }))
   on('command.register', (_, spec) => (commands.push(spec.name), { value: undefined } as never))
   on('state.get', () => ({ value: { value: undefined, version: 0 } }))
+  on('state.set', (_, e) => (states.set(e.key, e.value), { value: { isSet: true, version: 1 } }))
   on('ui.toast', () => ({ value: undefined }))
   on('ui.status', (_, e) => (statuses.push(e.text), { value: undefined }))
   on('config.set', (_, e) => {
@@ -45,7 +47,7 @@ async function host($: Engine, on: On, deny?: string, env: Record<string, string
     return deny ? { deny } : { value: e.value }
   })
   await $.session.start({ cwd: '/work', surface: null, isInteractive: false })
-  return { sets, statuses, commands }
+  return { sets, statuses, commands, states }
 }
 
 test('/jev-orc: registra, alterna e atualiza a status line', { options: { statusStyle: 'plain' } }, async ($, on) => {
@@ -55,6 +57,13 @@ test('/jev-orc: registra, alterna e atualiza a status line', { options: { status
   expect(r.text).toContain('auto → off')
   expect(h.sets).toEqual([{ key: 'jev-orchestrator.mode', value: 'off' }])
   expect(h.statuses.at(-1)).toBe('jev OFF')
+})
+
+test('/jev-orc: the new mode reaches $.state for other plugins', async ($, on) => {
+  const h = await host($, on)
+  expect(h.states.get('mode')).toBe('auto')
+  await run($, 'explicit')
+  expect(h.states.get('mode')).toBe('explicit')
 })
 
 test('/jev-orc status e inválido não gravam', async ($, on) => {

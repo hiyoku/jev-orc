@@ -12,7 +12,7 @@ export const register: Register = (on, options) => {
   const registered = new Set<string>()
   // The status view the registration shares; the user's effort is not seen here yet.
   const view = (total?: Savings) => ({ total, style: config.statusStyle, compare: config.compareModel })
-  // Set at session.start, which runs again on every module reload; English until then.
+  // shortcut: set at session.start, which runs once per process, so after a reload (an option change) this stays English; resolve the language in each hook that speaks if that matters.
   const text: { s: Strings } = { s: STRINGS.en }
 
   on('session.start', async ($, e, next) => {
@@ -44,7 +44,20 @@ export const register: Register = (on, options) => {
     // What the host kept across a module reload; the user's effort is not seen yet.
     const { value } = await $.state.get({ plugin: 'jev-orchestrator', key: 'savings' } as const)
     const total = (await $.store.get(TOTAL_KEY).catch(() => undefined)) as Savings | undefined
-    $.ui.status(formatStatus(value ?? EMPTY_SAVINGS, config.mode, view(total)))
+    try {
+      await $.state.set({ plugin: 'jev-orchestrator', key: 'mode' } as const, config.mode)
+      if (total) await $.state.set({ plugin: 'jev-orchestrator', key: 'total' } as const, total)
+    } catch {} // the state copies are for other plugins: the routing does not depend on them
+    try {
+      // Where the key comes from, in the order askJev looks (src/jev/client.ts), blank as missing; never the key itself.
+      const env = {
+        TYPESAFE_API_KEY: Boolean((await $.env.get('TYPESAFE_API_KEY'))?.trim()),
+        JEV_API_KEY: Boolean((await $.env.get('JEV_API_KEY'))?.trim()),
+      }
+      const source = config.apiKey ? 'option' : env.TYPESAFE_API_KEY ? 'TYPESAFE_API_KEY' : env.JEV_API_KEY ? 'JEV_API_KEY' : 'none'
+      await $.state.set({ plugin: 'jev-orchestrator', key: 'key' } as const, { source, env, endpoint: new URL(config.endpoint).host })
+    } catch {} // no env, or an endpoint URL fails to parse: no key entry, mode and total stay
+    if (config.showStatus) $.ui.status(formatStatus(value ?? EMPTY_SAVINGS, config.mode, view(total)))
     return next(e)
   })
 
@@ -64,7 +77,10 @@ export const register: Register = (on, options) => {
       return { text: deniedMessage(text.s, String(error)) }
     }
     // The reload does not rerun session.start: the line is refreshed here.
-    $.ui.status(formatStatus(savings, action.mode, view(total)))
+    try {
+      await $.state.set({ plugin: 'jev-orchestrator', key: 'mode' } as const, action.mode)
+    } catch {}
+    if (config.showStatus) $.ui.status(formatStatus(savings, action.mode, view(total)))
     return { text: changedMessage(text.s, config.mode, action.mode) }
   })
 

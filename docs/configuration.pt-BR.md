@@ -19,6 +19,7 @@ Ajuste por `/config` (linha `jev-orchestrator.<campo>`) ou `pluginConfigs["jev-o
 | `multiModel` | boolean | `false` | | um segundo modelo, mais forte, revisa tarefas difíceis em que o JEV está inseguro (verificador) |
 | `compareModel` | string | `auto` | `auto`, `haiku`, `sonnet`, `opus`, `fable` | modelo contra o qual a status line precifica os tokens roteados; auto: o modelo da sua sessão. Muda só a status line, não o roteamento |
 | `statusStyle` | string | `nerd` | `nerd`, `plain` | nerd: ícones Nerd Font e separadores `│` (exige uma Nerd Font no terminal); plain: só texto, o formato anterior |
+| `showStatus` | boolean | `true` | | desenha a status line do JEV; off: nenhuma linha, o modo e a economia ficam no estado do plugin (chaves `mode`, `total`, `key` de `$.state`) para outro plugin desenhar |
 | `typesafeApiKey` | string (sensível) | — | | chave do JEV (TypeSafe, ou OpenRouter com o endpoint do OpenRouter), guardada no Keychain e definida em `/plugin` → Installed → jev-orchestrator → Configure options; precedência: `typesafeApiKey` → `TYPESAFE_API_KEY` → `JEV_API_KEY`; vazia ou só espaços conta como ausente |
 | `jevEndpoint` | string | `https://api.typesafe.ai/v1/systemone` | URL https | API System One; para o OpenRouter, `https://openrouter.ai/api/v1/systemone` com uma chave do OpenRouter em `typesafeApiKey`; o que não for https volta ao padrão |
 | `logLevel` | string | `info` | `off`, `info`, `debug` | nível do log de decisões |

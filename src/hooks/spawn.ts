@@ -25,6 +25,8 @@ const VERIFY_INSTRUCTION =
 const SAVINGS = { plugin: 'jev-orchestrator', key: 'savings' } as const
 // The $.store key of every session's savings summed.
 export const TOTAL_KEY = 'totalSavings'
+// The same total in $.state, where other plugins can read it.
+const TOTAL = { plugin: 'jev-orchestrator', key: 'total' } as const
 
 // user: what the main loop's last request asked for (the counterfactual); prompt: what it ran with.
 type Efforts = { user: string; prompt: string }
@@ -40,8 +42,9 @@ async function track($: EngineInterface, config: Config, efforts: Efforts, chang
     try {
       total = change(((await $.store.get(TOTAL_KEY)) as Savings | undefined) ?? EMPTY_SAVINGS)
       await $.store.set(TOTAL_KEY, total)
+      await $.state.set(TOTAL, total)
     } catch {} // no store: the session's line alone
-    $.ui.status(formatStatus(savings, config.mode, { userEffort: efforts.user, total, promptEffort: efforts.prompt, style: config.statusStyle, compare: config.compareModel }))
+    if (config.showStatus) $.ui.status(formatStatus(savings, config.mode, { userEffort: efforts.user, total, promptEffort: efforts.prompt, style: config.statusStyle, compare: config.compareModel }))
   } catch {}
 }
 
@@ -97,6 +100,7 @@ export function routeAgentSpawns(on: On, config: Config, registered: ReadonlySet
   // ponytail: a listing built during that window shows the profile; a per-dispatch flag if the host adds one
   const dispatching = new Map<string, number>()
   let warnedMissingKey = false
+  let cleared = false
   const warned = { log: false }
   // ponytail: oldest-first eviction past the cap; a repeat older than 1000 routings is routed again; revisit if decisions.jsonl shows a tool_use_id routed twice
   const routedIds = new Set<string>()
@@ -126,6 +130,11 @@ export function routeAgentSpawns(on: On, config: Config, registered: ReadonlySet
   // mainEffort: one JEV call per typed prompt; the turn waits for it (up to JEV_TIMEOUT_MS).
   // ponytail: no semaphore, the main loop runs one turn at a time
   on('turn.start', async ($, e, next) => {
+    // session.start runs once per process and a reload keeps the line: a load with it off clears it on its first turn.
+    if (!config.showStatus && !cleared) {
+      cleared = true
+      $.ui.status(undefined)
+    }
     if (!config.mainEffort || config.mode !== 'auto' || !e.text.trim()) return next(e)
     const task = { tarefa: e.text.slice(0, MAX_TASK_CHARS), contexto: MAIN_CONTEXT }
     const entry = { tool_use_id: e.turnId, description: e.text.slice(0, 80), models: [] }

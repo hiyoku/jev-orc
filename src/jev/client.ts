@@ -34,7 +34,7 @@ export async function askJev(
   task: { tarefa: string; contexto: string },
   config: Pick<Config, 'apiKey' | 'endpoint'>,
 ): Promise<JevAnswers> {
-  const key = config.apiKey || (await $.env.get('TYPESAFE_API_KEY')) || (await $.env.get('JEV_API_KEY'))
+  const key = config.apiKey || (await $.env.get('TYPESAFE_API_KEY'))?.trim() || (await $.env.get('JEV_API_KEY'))?.trim()
   if (!key) throw new JevError('missing_key')
 
   const req = $.http.fetch(config.endpoint, {
