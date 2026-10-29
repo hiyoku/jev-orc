@@ -57,7 +57,7 @@ export const usd = (value: number): string =>
   value > 0 && value < 0.0005 ? '<$0.001' : `$${value > 0 && value < 0.01 ? value.toFixed(3) : value.toFixed(2)}`
 
 // " (-74%)" against the counterfactual; empty when there is none to compare.
-function percentVs(real: number, estimated: number | null): string {
+export function percentVs(real: number, estimated: number | null): string {
   if (estimated === null || estimated <= 0) return ''
   const percent = Math.round(((real - estimated) / estimated) * 100)
   return ` (${percent > 0 ? '+' : ''}${percent}%)`
