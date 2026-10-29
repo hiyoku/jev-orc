@@ -47,14 +47,16 @@ export const register: Register = (on, options) => {
     try {
       await $.state.set({ plugin: 'jev-orchestrator', key: 'mode' } as const, config.mode)
       if (total) await $.state.set({ plugin: 'jev-orchestrator', key: 'total' } as const, total)
-      // Where the key comes from, in the order askJev looks (src/jev/client.ts); never the key itself.
+    } catch {} // the state copies are for other plugins: the routing does not depend on them
+    try {
+      // Where the key comes from, in the order askJev looks (src/jev/client.ts), blank as missing; never the key itself.
       const env = {
-        TYPESAFE_API_KEY: Boolean(await $.env.get('TYPESAFE_API_KEY')),
-        JEV_API_KEY: Boolean(await $.env.get('JEV_API_KEY')),
+        TYPESAFE_API_KEY: Boolean((await $.env.get('TYPESAFE_API_KEY'))?.trim()),
+        JEV_API_KEY: Boolean((await $.env.get('JEV_API_KEY'))?.trim()),
       }
       const source = config.apiKey ? 'option' : env.TYPESAFE_API_KEY ? 'TYPESAFE_API_KEY' : env.JEV_API_KEY ? 'JEV_API_KEY' : 'none'
       await $.state.set({ plugin: 'jev-orchestrator', key: 'key' } as const, { source, env, endpoint: new URL(config.endpoint).host })
-    } catch {} // the state copies are for other plugins: the routing does not depend on them
+    } catch {} // no env, or an endpoint URL fails to parse: no key entry, mode and total stay
     if (config.showStatus) $.ui.status(formatStatus(value ?? EMPTY_SAVINGS, config.mode, view(total)))
     return next(e)
   })
