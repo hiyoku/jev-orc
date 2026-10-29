@@ -87,7 +87,7 @@
     "mainEffort": {
       "type": "boolean",
       "title": "Main prompt effort",
-      "description": "JEV sets the effort of your own prompts (the session model stays). Adds a JEV call before each prompt.",
+      "description": "JEV sets the effort of your own prompts (the session model stays). Before each prompt, sends JEV your prompt and the agent's last reply.",
       "default": false
     },
     "multiModel": {
