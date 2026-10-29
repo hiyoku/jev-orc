@@ -457,6 +457,23 @@ test('the key status names its source and never holds the key', async ($, on) =>
   expect(JSON.stringify(status)).not.toContain(KEY)
 })
 
+test('the key status: the option wins over both variables', { options: { typesafeApiKey: 'fake-option-key' } }, async ($, on) => {
+  const w = await world($, on, { env: { TYPESAFE_API_KEY: KEY, JEV_API_KEY: KEY } })
+  const status = w.state.get('key')?.value
+  expect(status).toMatchObject({ source: 'option', env: { TYPESAFE_API_KEY: true, JEV_API_KEY: true } })
+  expect(JSON.stringify(status)).not.toContain('fake-option-key')
+})
+
+test('the key status: JEV_API_KEY when TYPESAFE_API_KEY is blank', async ($, on) => {
+  const w = await world($, on, { env: { TYPESAFE_API_KEY: '  ', JEV_API_KEY: KEY } })
+  expect(w.state.get('key')?.value).toMatchObject({ source: 'JEV_API_KEY', env: { TYPESAFE_API_KEY: false, JEV_API_KEY: true } })
+})
+
+test('the key status: none without a key', async ($, on) => {
+  const w = await world($, on, { env: {} })
+  expect(w.state.get('key')?.value).toMatchObject({ source: 'none', env: { TYPESAFE_API_KEY: false, JEV_API_KEY: false } })
+})
+
 test('statusStyle nerd: the last status carries the icons', { options: { statusStyle: 'nerd' } }, async ($, on) => {
   const w = await world($, on)
   await callAgent($, agent('n1'))
