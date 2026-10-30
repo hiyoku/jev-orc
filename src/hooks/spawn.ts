@@ -35,15 +35,18 @@ type Efforts = { user: string; prompt: string }
 async function track($: EngineInterface, config: Config, efforts: Efforts, change: (savings: Savings) => Savings) {
   try {
     const savings = await update($, SAVINGS, (value) => change(value ?? EMPTY_SAVINGS))
-    // ponytail: read-then-write, two sessions finishing agents at the same instant can drop one; a per-session key summed on read if that matters
+    // ponytail: read-then-write, two sessions finishing agents at the same instant can drop one from the total, or the other's whole history entry; a per-session key read on demand if that matters
     // ponytail: one agent under an unknown parent model nulls the total's estimate for good (addAgent); keep a compared-cost sum if that shows up
     let total: Savings | undefined
     try {
       total = change(((await $.store.get(TOTAL_KEY)) as Savings | undefined) ?? EMPTY_SAVINGS)
       await $.store.set(TOTAL_KEY, total)
-      const history = ((await $.store.get(HISTORY_KEY)) as HistoryEntry[] | undefined) ?? []
-      await $.store.set(HISTORY_KEY, recordSession(history, await $.session.id(), await $.clock.now(), savings))
       await $.state.set(TOTAL, total)
+      // A route alone is no saving yet: the session enters the history with its first completed agent.
+      if (savings.agents > 0) {
+        const history = ((await $.store.get(HISTORY_KEY)) as HistoryEntry[] | undefined) ?? []
+        await $.store.set(HISTORY_KEY, recordSession(history, await $.session.id(), await $.clock.now(), savings))
+      }
     } catch {} // no store: the session's line alone
     if (config.showStatus) $.ui.status(formatStatus(savings, config.mode, { userEffort: efforts.user, total, promptEffort: efforts.prompt, style: config.statusStyle, compare: config.compareModel }))
   } catch {}

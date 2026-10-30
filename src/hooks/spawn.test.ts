@@ -545,6 +545,14 @@ test('each session keeps its savings in the $.store history', async ($, on) => {
   expect(history[1]).toMatchObject({ tokens: 84_000 })
 })
 
+test('a session enters the history only once a routed agent completes', async ($, on) => {
+  const w = await world($, on)
+  await callAgent($, agent('h0'))
+  expect(w.store.has(HISTORY_KEY)).toBe(false)
+  await $.turn.complete({ ...done, agentId: 'a-h0', usage: { ...usage, model: 'claude-haiku-5-5' } })
+  expect(w.store.get(HISTORY_KEY)).toHaveLength(1)
+})
+
 test('a turn without a routed agent changes nothing', async ($, on) => {
   const w = await world($, on)
   await $.turn.complete({ ...done, agentId: 'stranger', usage: { ...usage, model: 'claude-haiku-5-5' } })
