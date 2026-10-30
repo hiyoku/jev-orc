@@ -104,6 +104,7 @@ Toggle with the `/jev-orc` command:
 | `/jev-orc` | toggles `auto` ⇄ `off` (from `explicit` it goes to `off`) |
 | `/jev-orc on` / `off` / `explicit` | writes `auto` / `off` / `explicit` |
 | `/jev-orc status` | shows the mode and the status line, without writing |
+| `/jev-orc history` | lists the savings of the last 10 sessions, newest first; the history is kept across sessions |
 
 To pick `model`/`effort` by hand, turn it off with `/jev-orc off`; it applies from the next spawn.
 

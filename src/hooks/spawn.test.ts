@@ -5,6 +5,7 @@ import { LOG_PATH } from '../log'
 import { MAX_AGENTS, PARALLELISM } from '../config'
 import { STRINGS } from '../i18n'
 import { TOTAL_KEY } from '../savings'
+import { HISTORY_KEY, type HistoryEntry } from '../history'
 import { isOwnSpawn } from './spawn'
 import { MAX_TASK_CHARS, type JevState } from '../jev/state'
 
@@ -81,6 +82,7 @@ async function world($: Engine, on: On, opts: World = {}) {
   })
   on('store.get', (_, e) => ({ value: store.get(e.key) }))
   on('store.set', (_, e) => (store.set(e.key, e.value), { value: undefined }))
+  on('session.id', () => ({ value: 'session-1' }))
   on('fs.exists', (_, e) => ({ value: files.has(e.path) }))
   // The plugin's manifest, wherever the host puts the plugin's root.
   on('fs.read', (_, e) => ({ value: e.path.endsWith('/.claude-plugin/plugin.json') ? '{"version":"9.9.9"}' : files.get(e.path)! }))
@@ -529,6 +531,26 @@ test('the total across sessions is kept in $.store and shown', async ($, on) => 
   await $.turn.complete({ ...done, agentId: 'a-s3', usage: { ...usage, model: 'claude-haiku-5-5' } })
   expect(w.store.get(TOTAL_KEY)).toMatchObject({ agents: 10, tokens: 43_000, jevCalls: 1 })
   expect(w.statuses.at(-1)).toContain(' · total $1.00 (-50%)')
+})
+
+test('each session keeps its savings in the $.store history', async ($, on) => {
+  const w = await world($, on)
+  w.store.set(HISTORY_KEY, [{ session: 'before', at: 0, tokens: 1000, cost: 1, estimated: 2, parent: 'opus' }])
+  await callAgent($, agent('h1'))
+  await $.turn.complete({ ...done, agentId: 'a-h1', usage: { ...usage, model: 'claude-haiku-5-5' } })
+  await callAgent($, agent('h2'))
+  await $.turn.complete({ ...done, agentId: 'a-h2', usage: { ...usage, model: 'claude-haiku-5-5' } })
+  const history = w.store.get(HISTORY_KEY) as HistoryEntry[]
+  expect(history.map((entry) => entry.session)).toEqual(['before', 'session-1'])
+  expect(history[1]).toMatchObject({ tokens: 84_000 })
+})
+
+test('a session enters the history only once a routed agent completes', async ($, on) => {
+  const w = await world($, on)
+  await callAgent($, agent('h0'))
+  expect(w.store.has(HISTORY_KEY)).toBe(false)
+  await $.turn.complete({ ...done, agentId: 'a-h0', usage: { ...usage, model: 'claude-haiku-5-5' } })
+  expect(w.store.get(HISTORY_KEY)).toHaveLength(1)
 })
 
 test('a turn without a routed agent changes nothing', async ($, on) => {

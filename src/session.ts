@@ -59,7 +59,7 @@ async function setUp($: EngineInterface, session: Session): Promise<void> {
     await $.command.register({
       name: COMMAND_NAME,
       description: s.commandDescription,
-      argumentHint: '[on|off|explicit|status]',
+      argumentHint: '[on|off|explicit|status|history]',
       immediate: true,
     })
   } catch {} // the command is a convenience: the routing does not depend on it
